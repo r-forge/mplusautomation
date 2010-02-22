@@ -64,7 +64,7 @@ modelParams <- function(outfile, filename, extract=c("Title", "LL", "BIC", "AIC"
   #automatically extract the input for the file.
   startInput <- grep("^\\s*INPUT INSTRUCTIONS\\s*$", outfile, ignore.case=TRUE, perl=TRUE)
   if (length(startInput) == 0) warning("Could not find beginning of input")
-  
+     
   endInput <- grep("^\\s*(INPUT READING TERMINATED NORMALLY|\\d+ WARNING\\(S\\) FOUND IN THE INPUT INSTRUCTIONS)\\s*$", outfile, ignore.case=TRUE, perl=TRUE)
   if (length(endInput) == 0) warning("Could not find end of input")
   
@@ -248,7 +248,7 @@ addHeaderToSavedata <- function(outfile, directory=getwd()) {
 }
 
 getSavedata_Fileinfo <- function(outfile) {
-  #note that outfile is assumed to be a full path to the file (or to be in the current working directory
+  #note that outfile is assumed to be a full path to the file (or to be in the current working directory)
   #helper function to parse output from savedata command
   #if returnData is true, the data file created will be read in as an R data frame
   #if returnData is false, just the variable names are returned
@@ -271,7 +271,7 @@ getSavedata_Fileinfo <- function(outfile) {
   savedataEnd <- grep("^\\s*Save file record length\\s+\\d+$", readfile, ignore.case=TRUE, perl=TRUE)
   
   #need to have beginning and end
-  stopifnot(savedataStart > 0, savedataEnd > 0)
+  stopifnot(length(savedataStart) > 0, length(savedataEnd) > 0)
   
   savedataSection <- readfile[savedataStart:savedataEnd]
   
@@ -294,7 +294,8 @@ getSavedata_Fileinfo <- function(outfile) {
   
 }
 
-createTable <- function(modelList, basedir=getwd(), filename="Model Comparison.html", sortby="AICC", display=TRUE, latex=FALSE, dropCols=c("inputInstructions", "Observations"), label=NULL) {
+createTable <- function(modelList, basedir=getwd(), filename="Model Comparison.html",
+  sortby="AICC", display=TRUE, latex=FALSE, dropCols=c("inputInstructions", "Observations"), label=NULL) {
 #createTable(directory, recursive=FALSE)
 #
 #   modelList: list of model details returned by parseModels.
@@ -385,7 +386,7 @@ extractModelResults <- function(outfile) {
   #select the model section for further processing
   modelSection <- readfile[(beginModel+1):(endModel-1)]
   
-  
+ 
   matches <- gregexpr("^\\s*((Means|Thresholds|Intercepts|Variances|Residual Variances)|([\\w_\\d+\\.]+\\s+(BY|WITH|ON|\\|)))\\s*$", modelSection, perl=TRUE)
   #cbind together the start and end matches for each line of the gregexpr list
   #then rbind together all of the start and end lines to create a matrix
@@ -395,25 +396,63 @@ extractModelResults <- function(outfile) {
   
   #more readable (than above) using ldply from plyr
   convertMatches <- ldply(matches, function(row) data.frame(start=row, end=attr(row, "match.length")))
-  convertMatches$line <- 1:nrow(convertMatches)
+  convertMatches$startline <- 1:nrow(convertMatches)
   
   #only keep lines with a single match
   #this removes rows that are -1 from gregexpr
   convertMatches <- subset(convertMatches, start > 0)
   
   #develop a dataframe that divides into keyword matches versus variable matches
-  convertMatches <- ddply(convertMatches, .(line), function(row) {
+  convertMatches <- ddply(convertMatches, "startline", function(row) {
         #pull the matching keyword bsaed on the start/end attributes from gregexpr
-        match <- substr(modelSection[row$line],row$start,row$end)
+        match <- substr(modelSection[row$startline], row$start, row$end)
         #check for keyword
         if (match %in% c("Means", "Thresholds", "Intercepts", "Variances", "Residual Variances")) {
-          return(data.frame(line=row$line, keyword=make.names(match), varname=NA_character_, operator=NA_character_))
+          return(data.frame(startline=row$startline, keyword=make.names(match), varname=NA_character_, operator=NA_character_))
         }
         else if (length(variable <- strapply(match, "^\\s*([\\w_\\d+\\.]+)\\s+(BY|WITH|ON|\\|)\\s*$", c, perl=TRUE)[[1]]) > 0) {
-          return(data.frame(line=row$line, keyword=NA_character_, varname=variable[1], operator=variable[2]))
+          return(data.frame(startline=row$startline, keyword=NA_character_, varname=variable[1], operator=variable[2]))
         }
         else stop("failure to match keyword: ", match)
       })
+  
+  comboFrame <- c()
+  for (i in 1:nrow(convertMatches)) {
+    if (i < nrow(convertMatches)) convertMatches[i,"endline"] <- convertMatches[i+1,"startline"]-1
+    else convertMatches[i,"endline"] <- length(modelSection)
+    
+    chunk <- modelSection[convertMatches[i, "startline"]:convertMatches[i, "endline"]]
+
+    chunkParsed <- strapply(chunk, "^\\s*(\\w+[\\w_\\d+\\.\\$#]+)\\s+([-\\d\\.]+)\\s+([-\\d\\.]+)\\s+([-\\d\\.]+)\\s+([-\\d\\.]+)\\s*$", 
+      function(varmatch, est, se, est_se, pval) {
+        #browser()
+        if (is.na(convertMatches[i,]$keyword)) varTitle <- paste(convertMatches[i,]$varname, ".", convertMatches[i,]$operator, sep="")
+        else varTitle <- as.character(convertMatches[i,]$keyword)
+        
+        #return(list(paramHeader=varTitle, param=varmatch, est=as.numeric(est), 
+        #se=as.numeric(se), est_se=as.numeric(est_se), pval=as.numeric(pval)))
+        
+        return(data.frame(paramHeader=varTitle, param=varmatch, est=as.numeric(est), 
+          se=as.numeric(se), est_se=as.numeric(est_se), pval=as.numeric(pval), stringsAsFactors=FALSE))
+      },
+      perl=TRUE#, simplify=data.frame
+    )
+
+    #strapply will return a list of data frames
+    chunkParsed <- do.call("rbind", chunkParsed)
+
+    comboFrame <- rbind(comboFrame, chunkParsed)
+    
+  }
+
+  #so, the combination of rbind and list returns from strapply
+  #yields a list stored as a matrix with dimnames and dims
+  #just doing as.data.frame results in a DF with elements that are lists themselves
+  #this is dumb. we just want a regular DF.
+  #may be able to improve this later, but for now we have to kludge
+  #the dataframe using lapply
+  #to unlist each column, then reassemble with data.frame
+  return(data.frame(lapply(data.frame(comboFrame), unlist)))
   
   
 #this will return a data.frame of the form:
@@ -433,71 +472,71 @@ extractModelResults <- function(outfile) {
 #find ./ -iname "*.r" -print0 | xargs -0 grep "match.length"
 #need print0 and -0 to null-terminate find results, which allows for spaces in file names
   
-  extractParameters <- function(section) {
-    #the first line should always represent the keyword (e.g., "Means", "VAR BY", etc.)
-    sectionType <- section[1]
-    
-    #match basic keywords
-    if (length(keywordMatch <- grep("(Means|Intercepts|Variances|Residual Variances)", sectionType, perl=TRUE, value=TRUE)) > 0) {
-      resultsList <- list(name=keywordMatch)
-    }
-    
-    
-    
-    #variable effects (regression, measurement, covariance, growth)
-    measuredBy <- "^\\s*([\\w_\\d+\\.]+)\\s+(BY|WITH|ON|\\|)\\s*$"
-    
-    variableKeywordMatch <- strapply(readfile[curLine], measuredBy, c , perl=TRUE)[[1]]
-    
-  }
-  
-  #output for parameters always starts 4 lines after Model Results?
-  curLine <- beginModel + 4
-  
-  #ugly regular expression here, but basically it matches any of the following:
-  #1) Means, Thresholds, Intercepts, Variances, Residual Variances
-  #2) varname BY or WITH or ON or |
-  sectionMarkers <- grep("^\\s*((Means|Thresholds|Intercepts|Variances|Residual Variances)|([\\w_\\d+\\.]+\\s+(BY|WITH|ON|\\|)))\\s*$",
-      modelSection, perl=TRUE)
-  
-  for (i in 1:length(sectionMarkers)) {
-    if (i < length(sectionMarkers)) section <- modelSection[sectionMarkers[i]:(sectionMarkers[i+1]-1)]
-    else section <- modelSection[sectionMarkers[i]:length(modelSection)]
-    
-    extractParameters(section)
-    
-  }
-  
-  #moving away from the approach below given use of section markers above
-  
-  while(!(readfile[curLine]=="" && readfile[curLine+1]=="")) {
-    #search for the big keywords
-    #define regular expressions first for readability
-    measuredBy <- "^\\s*([\\w_\\d+\\.]+)\\s+(BY|WITH|ON|\\|)\\s*$"
-    
-    variableKeywordMatch <- strapply(readfile[curLine], measuredBy, c , perl=TRUE)[[1]]
-    
-    #if returns null, then no keyword match
-    if (!is.null(variableKeywordMatch[[1]])) {
-      #keyword match
-      #call func
-      print(variableKeywordMatch)
-      curLine <- curLine + 1
-    }
-    else if (length(keywordMatch <- grep("(Means|Intercepts|Variances|Residual Variances)",readfile[curLine],perl=TRUE, value=TRUE)) > 0) {
-      #these are more generic parameters that don't represent variable effects per se
-      #
-      print(keywordMatch)
-      #extractParameters(
-      curLine <- curLine + 1
-    }
-    else curLine <- curLine + 1
-    
-  }
-  cat("finished model results section\n")
-  #basically want to read line by line and switch into certain modes depending on what the results convey
-  
-  
-  #find
-  
+#  extractParameters <- function(section) {
+#    #the first line should always represent the keyword (e.g., "Means", "VAR BY", etc.)
+#    sectionType <- section[1]
+#    
+#    #match basic keywords
+#    if (length(keywordMatch <- grep("(Means|Intercepts|Variances|Residual Variances)", sectionType, perl=TRUE, value=TRUE)) > 0) {
+#      resultsList <- list(name=keywordMatch)
+#    }
+#    
+#    
+#    
+#    #variable effects (regression, measurement, covariance, growth)
+#    measuredBy <- "^\\s*([\\w_\\d+\\.]+)\\s+(BY|WITH|ON|\\|)\\s*$"
+#    
+#    variableKeywordMatch <- strapply(readfile[curLine], measuredBy, c , perl=TRUE)[[1]]
+#    
+#  }
+#  
+#  #output for parameters always starts 4 lines after Model Results?
+#  curLine <- beginModel + 4
+#  
+#  #ugly regular expression here, but basically it matches any of the following:
+#  #1) Means, Thresholds, Intercepts, Variances, Residual Variances
+#  #2) varname BY or WITH or ON or |
+#  sectionMarkers <- grep("^\\s*((Means|Thresholds|Intercepts|Variances|Residual Variances)|([\\w_\\d+\\.]+\\s+(BY|WITH|ON|\\|)))\\s*$",
+#      modelSection, perl=TRUE)
+#  
+#  for (i in 1:length(sectionMarkers)) {
+#    if (i < length(sectionMarkers)) section <- modelSection[sectionMarkers[i]:(sectionMarkers[i+1]-1)]
+#    else section <- modelSection[sectionMarkers[i]:length(modelSection)]
+#    
+#    extractParameters(section)
+#    
+#  }
+#  
+#  #moving away from the approach below given use of section markers above
+#  
+#  while(!(readfile[curLine]=="" && readfile[curLine+1]=="")) {
+#    #search for the big keywords
+#    #define regular expressions first for readability
+#    measuredBy <- "^\\s*([\\w_\\d+\\.]+)\\s+(BY|WITH|ON|\\|)\\s*$"
+#    
+#    variableKeywordMatch <- strapply(readfile[curLine], measuredBy, c , perl=TRUE)[[1]]
+#    
+#    #if returns null, then no keyword match
+#    if (!is.null(variableKeywordMatch[[1]])) {
+#      #keyword match
+#      #call func
+#      print(variableKeywordMatch)
+#      curLine <- curLine + 1
+#    }
+#    else if (length(keywordMatch <- grep("(Means|Intercepts|Variances|Residual Variances)",readfile[curLine],perl=TRUE, value=TRUE)) > 0) {
+#      #these are more generic parameters that don't represent variable effects per se
+#      #
+#      print(keywordMatch)
+#      #extractParameters(
+#      curLine <- curLine + 1
+#    }
+#    else curLine <- curLine + 1
+#    
+#  }
+#  cat("finished model results section\n")
+#  #basically want to read line by line and switch into certain modes depending on what the results convey
+#  
+#  
+#  #find
+#  
 }
