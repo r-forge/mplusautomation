@@ -2,88 +2,42 @@
 \Rdversion{1.1}
 \alias{parseModels}
 %- Also NEED an '\alias' for EACH other topic documented here.
-\title{
-%%  ~~function to do ... ~~
-}
+\title{Parse a group of Mplus models within a directory}
 \description{
-%%  ~~ A concise (1-5 lines) description of what the function does. ~~
+Parses a group of Mplus model output files (.out extension) for model fit statistics.
+At this time, the details extracted are fixed: \code{c("Title", "LL", "BIC", "AIC", "AICC", "Params", "Observations", "BLRT")},
+but the infrastructure is in place to allow for user-specified information in future versions.
 }
 \usage{
 parseModels(directory = getwd(), recursive = FALSE, filefilter)
 }
-%- maybe also 'usage' for other objects documented here.
+
 \arguments{
-  \item{directory}{
-%%     ~~Describe \code{directory} here~~
-}
-  \item{recursive}{
-%%     ~~Describe \code{recursive} here~~
-}
-  \item{filefilter}{
-%%     ~~Describe \code{filefilter} here~~
-}
+  \item{directory}{the directory containing Mplus output files (.out) to parse.
+  	Defaults to the current working directory. Example: "C:/Users/Michael/Mplus Runs"}
+  \item{recursive}{optional. If \code{TRUE}, parse all models nested in subdirectories
+  	within \code{directory}. Defaults to \code{FALSE}.}
+  \item{filefilter}{a Perl regular expression (PCRE-compatible) specifying particular output
+  	files to be parsed within \code{directory}. See \code{regex} or \code{http://www.pcre.org/pcre.txt}
+  	for details about regular expression syntax.}
 }
 \details{
 %%  ~~ If necessary, more details than the description above ~~
 }
-\value{
-%%  ~Describe the value returned
-%%  If it is a LIST, use
-%%  \item{comp1 }{Description of 'comp1'}
-%%  \item{comp2 }{Description of 'comp2'}
-%% ...
-}
+\value{Returns a \code{data.frame} containing model fit statistics for all output files within \code{directory}.}
 \references{
 %% ~put references to the literature/web site here ~
 }
 \author{
-%%  ~~who you are~~
+Michael Hallquist
 }
-\note{
-%%  ~~further notes~~
-}
-
-%% ~Make other sections like Warning with \section{Warning }{....} ~
 
 \seealso{
-%% ~~objects to See Also as \code{\link{help}}, ~~~
+\code{\link{regex}}
+\code{\link{runModels}}
 }
-\examples{
-##---- Should be DIRECTLY executable !! ----
-##-- ==>  Define data, use random,
-##--	or do  help(data=index)  for the standard data sets.
-
-## The function is currently defined as
-function (directory = getwd(), recursive = FALSE, filefilter) 
-{
-    curdir <- getwd()
-    setwd(directory)
-    filelist <- list.files(recursive = recursive)
-    outfiles <- filelist[grep(".*\\.out", filelist, ignore.case = TRUE)]
-    if (!missing(filefilter)) {
-        dropOutExtensions <- sapply(outfiles, function(x) {
-            if (nchar(x) >= 4) 
-                return(tolower(substr(x, 1, (nchar(x) - 4))))
-        })
-        outfiles <- outfiles[grep(paste(".*", filefilter, ".*", 
-            sep = ""), dropOutExtensions, ignore.case = TRUE, 
-            perl = TRUE)]
-    }
-    if (length(outfiles) == 0) {
-        warning("No output files detected in this directory.")
-        return(NULL)
-    }
-    details <- c()
-    for (i in 1:length(outfiles)) {
-        readfile <- scan(outfiles[i], what = "character", sep = "\n", 
-            strip.white = TRUE)
-        details <- rbind(details, modelParams(readfile, outfiles[i]))
-    }
-    setwd(curdir)
-    return(details)
-  }
-}
+%\examples{
+%}
 % Add one or more standard keywords, see file 'KEYWORDS' in the
 % R documentation directory.
-\keyword{ ~kwd1 }
-\keyword{ ~kwd2 }% __ONLY ONE__ keyword per line
+\keyword{interface}

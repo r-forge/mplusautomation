@@ -1,23 +1,21 @@
-\name{evaluateConditional}
+\name{addHeaderToSavedata}
 \Rdversion{1.1}
-\alias{evaluateConditional}
+\alias{addHeaderToSavedata}
 %- Also NEED an '\alias' for EACH other topic documented here.
-\title{
-%%  ~~function to do ... ~~
-}
+\title{Add Header Row to SAVEDATA File}
 \description{
 %%  ~~ A concise (1-5 lines) description of what the function does. ~~
 }
 \usage{
-evaluateConditional(tag, toProcess)
+addHeaderToSavedata(outfile, directory = getwd())
 }
 %- maybe also 'usage' for other objects documented here.
 \arguments{
-  \item{tag}{
-%%     ~~Describe \code{tag} here~~
+  \item{outfile}{
+%%     ~~Describe \code{outfile} here~~
 }
-  \item{toProcess}{
-%%     ~~Describe \code{toProcess} here~~
+  \item{directory}{
+%%     ~~Describe \code{directory} here~~
 }
 }
 \details{
@@ -51,23 +49,10 @@ evaluateConditional(tag, toProcess)
 ##--	or do  help(data=index)  for the standard data sets.
 
 ## The function is currently defined as
-function (tag, toProcess) 
+function (outfile, directory = getwd()) 
 {
-    regexp <- "(\\w+)\\s*([!><=]+)\\s*(\\d+)"
-    conditional <- unlist(strapply(tag, regexp, c))
-    if (length(conditional) < 3) {
-        stop("Error in conditional tag: does not contain variable, operator, and value. Tag = ", 
-            tag)
-    }
-    if (conditional[2] == "=") 
-        conditional[2] = "=="
-    iteratorPosition <- grep(paste("\\b", conditional[1], "\\b", 
-        sep = ""), toProcess$iterators, perl = T)
-    return(eval(parse(text = paste("toProcess$curItPos[iteratorPosition]", 
-        conditional[2], conditional[3], sep = ""))))
   }
 }
 % Add one or more standard keywords, see file 'KEYWORDS' in the
 % R documentation directory.
-\keyword{ ~kwd1 }
-\keyword{ ~kwd2 }% __ONLY ONE__ keyword per line
+\keyword{interface}

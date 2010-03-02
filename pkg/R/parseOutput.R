@@ -404,7 +404,7 @@ extractModelResults <- function(outfile) {
   
   #develop a dataframe that divides into keyword matches versus variable matches
   convertMatches <- ddply(convertMatches, "startline", function(row) {
-        #pull the matching keyword bsaed on the start/end attributes from gregexpr
+        #pull the matching keyword based on the start/end attributes from gregexpr
         match <- substr(modelSection[row$startline], row$start, row$end)
         #check for keyword
         if (match %in% c("Means", "Thresholds", "Intercepts", "Variances", "Residual Variances")) {
@@ -470,73 +470,5 @@ extractModelResults <- function(outfile) {
 #END 2/5/2010
 #useful command for full-text searching within r source files:
 #find ./ -iname "*.r" -print0 | xargs -0 grep "match.length"
-#need print0 and -0 to null-terminate find results, which allows for spaces in file names
-  
-#  extractParameters <- function(section) {
-#    #the first line should always represent the keyword (e.g., "Means", "VAR BY", etc.)
-#    sectionType <- section[1]
-#    
-#    #match basic keywords
-#    if (length(keywordMatch <- grep("(Means|Intercepts|Variances|Residual Variances)", sectionType, perl=TRUE, value=TRUE)) > 0) {
-#      resultsList <- list(name=keywordMatch)
-#    }
-#    
-#    
-#    
-#    #variable effects (regression, measurement, covariance, growth)
-#    measuredBy <- "^\\s*([\\w_\\d+\\.]+)\\s+(BY|WITH|ON|\\|)\\s*$"
-#    
-#    variableKeywordMatch <- strapply(readfile[curLine], measuredBy, c , perl=TRUE)[[1]]
-#    
-#  }
-#  
-#  #output for parameters always starts 4 lines after Model Results?
-#  curLine <- beginModel + 4
-#  
-#  #ugly regular expression here, but basically it matches any of the following:
-#  #1) Means, Thresholds, Intercepts, Variances, Residual Variances
-#  #2) varname BY or WITH or ON or |
-#  sectionMarkers <- grep("^\\s*((Means|Thresholds|Intercepts|Variances|Residual Variances)|([\\w_\\d+\\.]+\\s+(BY|WITH|ON|\\|)))\\s*$",
-#      modelSection, perl=TRUE)
-#  
-#  for (i in 1:length(sectionMarkers)) {
-#    if (i < length(sectionMarkers)) section <- modelSection[sectionMarkers[i]:(sectionMarkers[i+1]-1)]
-#    else section <- modelSection[sectionMarkers[i]:length(modelSection)]
-#    
-#    extractParameters(section)
-#    
-#  }
-#  
-#  #moving away from the approach below given use of section markers above
-#  
-#  while(!(readfile[curLine]=="" && readfile[curLine+1]=="")) {
-#    #search for the big keywords
-#    #define regular expressions first for readability
-#    measuredBy <- "^\\s*([\\w_\\d+\\.]+)\\s+(BY|WITH|ON|\\|)\\s*$"
-#    
-#    variableKeywordMatch <- strapply(readfile[curLine], measuredBy, c , perl=TRUE)[[1]]
-#    
-#    #if returns null, then no keyword match
-#    if (!is.null(variableKeywordMatch[[1]])) {
-#      #keyword match
-#      #call func
-#      print(variableKeywordMatch)
-#      curLine <- curLine + 1
-#    }
-#    else if (length(keywordMatch <- grep("(Means|Intercepts|Variances|Residual Variances)",readfile[curLine],perl=TRUE, value=TRUE)) > 0) {
-#      #these are more generic parameters that don't represent variable effects per se
-#      #
-#      print(keywordMatch)
-#      #extractParameters(
-#      curLine <- curLine + 1
-#    }
-#    else curLine <- curLine + 1
-#    
-#  }
-#  cat("finished model results section\n")
-#  #basically want to read line by line and switch into certain modes depending on what the results convey
-#  
-#  
-#  #find
-#  
+#need print0 and -0 to null-terminate find results, which allows for spaces in file names  
 }

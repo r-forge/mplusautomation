@@ -13,7 +13,7 @@ runModels_Interactive <- function(directory=getwd(), recursive="0",
     checkDateChecked <- as.logical(as.numeric(tclvalue(checkDateChecked)))
     directory <- tclvalue(directoryVariable)
     logFileChecked <- as.logical(as.numeric(tclvalue(logFileChecked)))
-    logFile_TCL <- as.logical(as.numeric(tclvalue(logFile_TCL)))
+    logFile_TCL <- tclvalue(logFile_TCL)
     
     #check date may only be checked if replace outfile is on.
     if (!replaceOutfileChecked) checkDateChecked <- FALSE
@@ -238,6 +238,9 @@ runModels <- function(directory=getwd(), recursive=FALSE, showOutput=FALSE, repl
     if(length(grep("mplus.exe", processList$procname, ignore.case=TRUE)) > 0) {
       if(isLogOpen()) writeLines("Killing wayward Mplus processes", logTarget)
       shell("taskkill /f /im mplus.exe")
+      
+    #consider deleting unfinished outfile/gph file if we actually terminate
+    #a process.
     }
     
     #close logfile
@@ -245,6 +248,8 @@ runModels <- function(directory=getwd(), recursive=FALSE, showOutput=FALSE, repl
     
     #reset working directory
     setwd(curdir)
+    
+
   }
   
   on.exit(exitRun())
