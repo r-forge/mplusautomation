@@ -8,12 +8,15 @@ Parameters include the parameter estimate, std. err, param/s.e., and two-tailed 
 Model results are returned as a \code{data.frame} object. 
 }
 \usage{
-extractModelResults(outfile)
+extractModelResults(outfile, resultType="raw")
 }
-%- maybe also 'usage' for other objects documented here.
+
 \arguments{
   \item{outfile}{the output file to be parsed for model parameters. May be a full path, relative path, or a filename within
-  the working directory. Example: "C:/Users/Michael/Mplus Runs/Model 23.out"}
+  	the working directory. Example: "C:/Users/Michael/Mplus Runs/Model 23.out"}
+  \item{resultType}{The results section to extract. If \code{raw}, the unstandardized estimates will be returned.
+  	"stdyx", "stdy", and "std" are the other options, which extract different standardized solutions. See the Mplus User's Guide
+  	for additional details about the differences in these standardizations.}
 }
 
 \value{returns a \code{data.frame} containing the MODEL RESULTS section of \code{outfile}. Variables include
@@ -23,6 +26,10 @@ extractModelResults(outfile)
 \item{se}{Standard error of the estimate}
 \item{est_se}{Quotient of \code{paramest/se}, representing z-test/t-test in large samples}
 \item{pval}{Two-tailed p-value for the \code{est_se} quotient.}
+
+If the model contains multiple latent classes, an additional variable, \code{LatentClass},
+will be included, specifying the latent class number. Also, the Categorical Latent Variables section
+will be included as \code{LatentClass} "CatVars."
 }
 \author{Michael Hallquist}
 \seealso{

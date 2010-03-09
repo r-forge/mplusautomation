@@ -45,6 +45,7 @@ is returned (created by \code{xtable}). Otherwise, nothing is returned because a
 
 \seealso{
 \code{\link{parseModels}}
+
 \code{\link{xtable}}
 }
 %\examples{

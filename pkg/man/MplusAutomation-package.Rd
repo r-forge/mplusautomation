@@ -19,21 +19,37 @@ Date: \tab 2010-03-08\cr
 License: \tab LGPL-3\cr
 LazyLoad: \tab yes\cr
 }
-~~ An overview of how to use the package, including the most important ~~
-~~ functions ~~
+
+The MplusAutomation package has three primary purposes:
+\enumerate{
+	\item To automatically run groups/batches of models.
+	\item To provide routines to extract model fit statistics, parameter estimates,
+		and raw data from Mplus output files.
+	\item To provide a template language that allows for the creation of related input files (under development).
+}
+
+At this time, the first two items are included in the package, with a prototype of the template language under development.
+
+The core routine for running batches of models is \code{\link{runModels}}, with an easy-to-use GUI wrapper, \code{\link{runModels_Interactive}}.
+
+To extract model summary statistics from one or more output files, see \code{\link{parseModels}}, which returns a \code{data.frame} of fit statistics
+for models located within a directory. Model fit results can be summarized in tabular form (for comparing among models) using \code{\link{createTable}}.
+
+To extract raw data created by the SAVEDATA command (e.g., class membership probabilities or factor scores), see \code{\link{getSavedata_Data}}.
+
+To extract unstandardized or standardized parameter estimates from a single output file, see \code{\link{extractModelResults}}.
 }
 \author{
 Michael Hallquist
 
-Maintainer: Who to complain to <yourfault@somewhere.net>
-~~ The author and/or maintainer of the package ~~
+Maintainer: Michael Hallquist <michael.hallquist@gmail.com>
 }
 \references{
-~~ Literature or other references for background information ~~
+Mplus software. Muthen and Muthen. \url{http://www.statmodel.com} 
 }
 \keyword{ package }
-\seealso{
-~~ Optional links to other man pages, e.g. ~~
-~~ \code{\link[<pkg>:<pkg>-package]{<pkg>}} ~~
-}
-\examples{}
+%\seealso{
+%~~ Optional links to other man pages, e.g. ~~
+%~~ \code{\link[<pkg>:<pkg>-package]{<pkg>}} ~~
+%}
+%\examples{}
