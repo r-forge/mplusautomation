@@ -10,53 +10,42 @@ is \code{FALSE}, then the output is an HTML file specified by \code{filename}. O
 by \code{xtable} is returned.
 }
 \usage{
-createTable(modelList, basedir = getwd(), filename = "Model Comparison.html", sortby = "AICC",
+createTable(modelList, filename = file.path(getwd(), "Model Comparison.html"), sortby = "AICC",
 	display = TRUE, latex = FALSE, dropCols = c("inputInstructions", "Observations"), label = NULL)
 }
-%- maybe also 'usage' for other objects documented here.
 \arguments{
-  \item{modelList}{
-%%     ~~Describe \code{modelList} here~~
-}
-  \item{basedir}{
-%%     ~~Describe \code{basedir} here~~
-}
-  \item{filename}{
-%%     ~~Describe \code{filename} here~~
-}
-  \item{sortby}{
-%%     ~~Describe \code{sortby} here~~
-}
-  \item{display}{
-%%     ~~Describe \code{display} here~~
-}
-  \item{latex}{
-%%     ~~Describe \code{latex} here~~
-}
-  \item{dropCols}{
-%%     ~~Describe \code{dropCols} here~~
-}
-  \item{label}{
-%%     ~~Describe \code{label} here~~
-}
-}
-\details{
-%%  ~~ If necessary, more details than the description above ~~
+  \item{modelList}{A list of models (as a \code{data.frame}) returned from the \code{parseModels}
+  	function.}
+  \item{filename}{The name of the HTML file to be created. Can be an absolute or relative path.
+  	If \code{filename} is a relative path or just the filename, then it is assumed that the file resides in
+  	the working directory \code{getwd()}.}
+  \item{sortby}{optional. Field name (as character string) by which to sort the table.
+  	Typically an information criterion (e.g., "AIC" or "BIC") is used to sort the table.}
+  \item{display}{optional. When creating an HTML file containing the table, this parameter
+  	specifies whether to display the table upon creation (\code{TRUE} or \code{FALSE}).}
+  \item{latex}{optional. The \code{createTable} function will return a LaTex table
+  	if \code{latex} is \code{TRUE}. If \code{FALSE}, the function will write the table to
+  	an HTML file specified by \code{filename}.}
+  \item{dropCols}{optional. A vector of character strings specifying which columns should be
+  	dropped from the \code{modelList} data frame prior to creating the table. Defaults to
+  	c("inputInstructions", "Observations").}
+  \item{label}{optional. A character string specifying the LaTex label for the table.
+  	Only relevant when \code{latex} is \code{TRUE}.}
 }
 \value{
+If \code{latex} is \code{TRUE}, then a LaTex-formatted table summarizing the \code{modelList}
+is returned (created by \code{xtable}). Otherwise, nothing is returned because an HTML file is created.
 %%  ~Describe the value returned
 %%  If it is a LIST, use
 %%  \item{comp1 }{Description of 'comp1'}
 %%  \item{comp2 }{Description of 'comp2'}
 %% ...
 }
-\references{
-%% ~put references to the literature/web site here ~
-}
 \author{Michael Hallquist}
 
 \seealso{
 \code{\link{parseModels}}
+\code{\link{xtable}}
 }
 %\examples{
 %}

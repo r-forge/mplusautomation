@@ -294,7 +294,7 @@ getSavedata_Fileinfo <- function(outfile) {
   
 }
 
-createTable <- function(modelList, basedir=getwd(), filename="Model Comparison.html",
+createTable <- function(modelList, filename=file.path(getwd(), "Model Comparison.html"),
   sortby="AICC", display=TRUE, latex=FALSE, dropCols=c("inputInstructions", "Observations"), label=NULL) {
 #createTable(directory, recursive=FALSE)
 #
@@ -309,13 +309,15 @@ createTable <- function(modelList, basedir=getwd(), filename="Model Comparison.h
 #   Example: createTable(myModels, "C:/Documents and Settings/Michael/My Documents/Mplus Stuff/", "my comparison.html", sortby="BIC")
   
   #retain working directory to reset at end of run
-  curdir <- getwd()
-  setwd(basedir)
+  #curdir <- getwd()
+  #setwd(basedir)
   
   require(xtable)
   
   #convert modelList (which defaults to array of lists) to data frame
   dframe <- as.data.frame(modelList)
+  
+  #Process vector of columns to drop
   for (column in dropCols) {
     dframe[[column]] <- NULL
   }
@@ -331,6 +333,11 @@ createTable <- function(modelList, basedir=getwd(), filename="Model Comparison.h
     filename <- paste(filename, ".html", sep="")
   }                                      
   
+  if (length(grep("[\\/]", filename)) == 0) {
+    #Filename does not contain a path. Therefore, add the working directory
+    filename <- file.path(getwd(), filename)
+  }
+  
   if (latex==FALSE) {
     print(
         x=xtable(sortTab),
@@ -342,26 +349,29 @@ createTable <- function(modelList, basedir=getwd(), filename="Model Comparison.h
     
     if (display) {
       #load table in browser
-      shell.exec(paste("file:///", basedir, "/", filename, sep=""))
+      shell.exec(paste("file:///", filename, sep=""))
     }
-  }
-  
+  }  
   
   #reset working directory
-  setwd(curdir)
+  #setwd(curdir)
   
   if (latex==TRUE) return(xtable(sortTab, label=label))
   
 }
 
-extractModelResults <- function(outfile) {
+extractModelResults <- function(outfile, resultType="raw") {
   require(gsubfn)
   require(plyr)
   readfile <- scan(outfile, what="character", sep="\n", strip.white=TRUE, blank.lines.skip=FALSE)
   
   #locate the start of the model results section
   #note that this won't work for EFA... but do I care? :)
-  beginModel <- grep("^MODEL RESULTS$", readfile)
+  if (resultType=="raw") beginModel <- grep("^MODEL RESULTS$", readfile)
+  else if (resultType=="stdyx") beginModel <- grep("^STDYX Standardization$", readfile)
+  else if (resultType=="stdy") beginModel <- grep("^STDY Standardization$", readfile)
+  else if (resultType=="std") beginModel <- grep("^STD Standardization$", readfile)
+  else stop("Unsupported result type. Must be one of: \"raw\", \"stdyx\", \"stdy\", \"std\"")
   
   #the end of the model results section is demarcated by two blank lines
   endModel <- 0
@@ -385,89 +395,116 @@ extractModelResults <- function(outfile) {
   
   #select the model section for further processing
   modelSection <- readfile[(beginModel+1):(endModel-1)]
-  
- 
-  matches <- gregexpr("^\\s*((Means|Thresholds|Intercepts|Variances|Residual Variances)|([\\w_\\d+\\.]+\\s+(BY|WITH|ON|\\|)))\\s*$", modelSection, perl=TRUE)
-  #cbind together the start and end matches for each line of the gregexpr list
-  #then rbind together all of the start and end lines to create a matrix
-  #convertMatches <- do.call("rbind", lapply(matches, function(x) cbind(x, attr(x, "match.length"))))
-  #now convert it to a data frame with the line number included
-  #convertMatches2 <- data.frame(line=1:nrow(convertMatches),start=convertMatches[,1], end=convertMatches[,2])
-  
-  #more readable (than above) using ldply from plyr
-  convertMatches <- ldply(matches, function(row) data.frame(start=row, end=attr(row, "match.length")))
-  convertMatches$startline <- 1:nrow(convertMatches)
-  
-  #only keep lines with a single match
-  #this removes rows that are -1 from gregexpr
-  convertMatches <- subset(convertMatches, start > 0)
-  
-  #develop a dataframe that divides into keyword matches versus variable matches
-  convertMatches <- ddply(convertMatches, "startline", function(row) {
-        #pull the matching keyword based on the start/end attributes from gregexpr
-        match <- substr(modelSection[row$startline], row$start, row$end)
-        #check for keyword
-        if (match %in% c("Means", "Thresholds", "Intercepts", "Variances", "Residual Variances")) {
-          return(data.frame(startline=row$startline, keyword=make.names(match), varname=NA_character_, operator=NA_character_))
-        }
-        else if (length(variable <- strapply(match, "^\\s*([\\w_\\d+\\.]+)\\s+(BY|WITH|ON|\\|)\\s*$", c, perl=TRUE)[[1]]) > 0) {
-          return(data.frame(startline=row$startline, keyword=NA_character_, varname=variable[1], operator=variable[2]))
-        }
-        else stop("failure to match keyword: ", match)
-      })
-  
-  comboFrame <- c()
-  for (i in 1:nrow(convertMatches)) {
-    if (i < nrow(convertMatches)) convertMatches[i,"endline"] <- convertMatches[i+1,"startline"]-1
-    else convertMatches[i,"endline"] <- length(modelSection)
+
+  #helper function used to parse each chunk of output (will be many if latent classes are used)
+  parseChunk <- function(thisChunk) {
+    matches <- gregexpr("^\\s*((Means|Thresholds|Intercepts|Variances|Residual Variances)|([\\w_\\d+\\.]+\\s+(BY|WITH|ON|\\|)))\\s*$", thisChunk, perl=TRUE)
+    #cbind together the start and end matches for each line of the gregexpr list
+    #then rbind together all of the start and end lines to create a matrix
+    #convertMatches <- do.call("rbind", lapply(matches, function(x) cbind(x, attr(x, "match.length"))))
+    #now convert it to a data frame with the line number included
+    #convertMatches2 <- data.frame(line=1:nrow(convertMatches),start=convertMatches[,1], end=convertMatches[,2])
     
-    chunk <- modelSection[convertMatches[i, "startline"]:convertMatches[i, "endline"]]
-
-    chunkParsed <- strapply(chunk, "^\\s*(\\w+[\\w_\\d+\\.\\$#]+)\\s+([-\\d\\.]+)\\s+([-\\d\\.]+)\\s+([-\\d\\.]+)\\s+([-\\d\\.]+)\\s*$", 
-      function(varmatch, est, se, est_se, pval) {
-        #browser()
-        if (is.na(convertMatches[i,]$keyword)) varTitle <- paste(convertMatches[i,]$varname, ".", convertMatches[i,]$operator, sep="")
-        else varTitle <- as.character(convertMatches[i,]$keyword)
-        
-        #return(list(paramHeader=varTitle, param=varmatch, est=as.numeric(est), 
-        #se=as.numeric(se), est_se=as.numeric(est_se), pval=as.numeric(pval)))
-        
-        return(data.frame(paramHeader=varTitle, param=varmatch, est=as.numeric(est), 
-          se=as.numeric(se), est_se=as.numeric(est_se), pval=as.numeric(pval), stringsAsFactors=FALSE))
-      },
-      perl=TRUE#, simplify=data.frame
-    )
-
-    #strapply will return a list of data frames
-    chunkParsed <- do.call("rbind", chunkParsed)
-
-    comboFrame <- rbind(comboFrame, chunkParsed)
+    #more readable (than above) using ldply from plyr
+    convertMatches <- ldply(matches, function(row) data.frame(start=row, end=attr(row, "match.length")))
+    convertMatches$startline <- 1:nrow(convertMatches)
+    
+    #only keep lines with a single match
+    #this removes rows that are -1 from gregexpr
+    convertMatches <- subset(convertMatches, start > 0)
+    
+    #develop a dataframe that divides into keyword matches versus variable matches
+    convertMatches <- ddply(convertMatches, "startline", function(row) {
+          #pull the matching keyword based on the start/end attributes from gregexpr
+          match <- substr(thisChunk[row$startline], row$start, row$end)
+          #check for keyword
+          if (match %in% c("Means", "Thresholds", "Intercepts", "Variances", "Residual Variances")) {
+            return(data.frame(startline=row$startline, keyword=make.names(match), varname=NA_character_, operator=NA_character_))
+          }
+          else if (length(variable <- strapply(match, "^\\s*([\\w_\\d+\\.]+)\\s+(BY|WITH|ON|\\|)\\s*$", c, perl=TRUE)[[1]]) > 0) {
+            return(data.frame(startline=row$startline, keyword=NA_character_, varname=variable[1], operator=variable[2]))
+          }
+          else stop("failure to match keyword: ", match)
+        })
+    
+    comboFrame <- c()
+    for (i in 1:nrow(convertMatches)) {
+      if (i < nrow(convertMatches)) convertMatches[i,"endline"] <- convertMatches[i+1,"startline"]-1
+      else convertMatches[i,"endline"] <- length(thisChunk)
+      
+      chunk <- thisChunk[convertMatches[i, "startline"]:convertMatches[i, "endline"]]
+      
+      chunkParsed <- strapply(chunk, "^\\s*(\\w+[\\w_\\d+\\.\\$#]+)\\s+([-\\d\\.]+)\\s+([-\\d\\.]+)\\s+([-\\d\\.]+)\\s+([-\\d\\.]+)\\s*$", 
+          function(varmatch, est, se, est_se, pval) {
+            if (is.na(convertMatches[i,]$keyword)) varTitle <- paste(convertMatches[i,]$varname, ".", convertMatches[i,]$operator, sep="")
+            else varTitle <- as.character(convertMatches[i,]$keyword)
+            
+            #return(list(paramHeader=varTitle, param=varmatch, est=as.numeric(est), 
+            #se=as.numeric(se), est_se=as.numeric(est_se), pval=as.numeric(pval)))
+            
+            return(data.frame(paramHeader=varTitle, param=varmatch, est=as.numeric(est), 
+                    se=as.numeric(se), est_se=as.numeric(est_se), pval=as.numeric(pval), stringsAsFactors=FALSE))
+          },
+          perl=TRUE#, simplify=data.frame
+      )
+      
+      #strapply will return a list of data frames
+      chunkParsed <- do.call("rbind", chunkParsed)
+      
+      #add the current chunk to the overall data.frame
+      comboFrame <- rbind(comboFrame, chunkParsed)
+      
+    }
+    
+    #so, the combination of rbind and list returns from strapply
+    #yields a list stored as a matrix with dimnames and dims
+    #just doing as.data.frame results in a DF with elements that are lists themselves
+    #this is dumb. we just want a regular DF.
+    #may be able to improve this later, but for now we have to kludge
+    #the dataframe using lapply
+    #to unlist each column, then reassemble with data.frame
+    return(data.frame(lapply(data.frame(comboFrame), unlist)))
     
   }
-
-  #so, the combination of rbind and list returns from strapply
-  #yields a list stored as a matrix with dimnames and dims
-  #just doing as.data.frame results in a DF with elements that are lists themselves
-  #this is dumb. we just want a regular DF.
-  #may be able to improve this later, but for now we have to kludge
-  #the dataframe using lapply
-  #to unlist each column, then reassemble with data.frame
-  return(data.frame(lapply(data.frame(comboFrame), unlist)))
   
   
-#this will return a data.frame of the form:
-#line            keyword  varname operator
-#   5               <NA> PREOCATT       BY
-#  11               <NA> P_AMBIVS     WITH
-#  14         Intercepts     <NA>     <NA>
-#  20          Variances     <NA>     <NA>
-#  23 Residual.Variances     <NA>     <NA>
+  #check for latent classes
+  latentClassMatches <- grep("^\\s*Latent Class \\d+\\s*$", modelSection, ignore.case=TRUE, perl=TRUE)
   
-#now we need to process each element in the data frame
-#extract model section between line + 1 and next section - 1
-#and process in terms of keywords and varnames
+  if (length(latentClassMatches) > 0) {
+    #if there are latent class sections, read these one at a time.
+    #otherwise, just parse the whole section and return it
+    
+    bigFrame <- c()
+    catVars <- FALSE
+    for (i in 1:length(latentClassMatches)) {
+      if (i < length(latentClassMatches)) thisChunk <- modelSection[(latentClassMatches[i]+1):(latentClassMatches[i+1]-1)]
+      else if (i == length(latentClassMatches)) {
+        #check for use of categorical latent vars, which have their own section
+        if (length(catPos <- grep("Categorical Latent Variables", modelSection)) > 0) {
+          thisChunk <- modelSection[(latentClassMatches[i]+1):(catPos-1)] 
+          catVars <- TRUE
+        }
+        else thisChunk <- modelSection[(latentClassMatches[i]+1):length(modelSection)]
+      } 
+      
+      parsedChunk <- parseChunk(thisChunk)
+      lcNum <- sub("^\\s*Latent Class (\\d+)\\s*$", "\\1", modelSection[latentClassMatches[i]], perl=TRUE)
+      parsedChunk$LatentClass <- lcNum
+      bigFrame <- rbind(bigFrame, parsedChunk)
+      
+      if (catVars == TRUE) {
+        catChunk <- modelSection[(catPos+1):length(modelSection)]
+        catParsed <- parseChunk(catChunk)
+        catParsed$LatentClass <- "CatVars"
+        bigFrame <- rbind(bigFrame, catParsed)
+      }
+    }
+    
+    return(bigFrame)
+  }
+  else return(parseChunk(modelSection))
   
-#END 2/5/2010
 #useful command for full-text searching within r source files:
 #find ./ -iname "*.r" -print0 | xargs -0 grep "match.length"
 #need print0 and -0 to null-terminate find results, which allows for spaces in file names  

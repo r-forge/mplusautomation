@@ -162,7 +162,6 @@ runModels_Interactive <- function(directory=getwd(), recursive="0",
 
 runModels <- function(directory=getwd(), recursive=FALSE, showOutput=FALSE, replaceOutfile="always",
     logFile="Mplus Run Models.log") {
-#runModels(directory, recursive=FALSE, showOutput=FALSE, translate=TRUE)
 #
 #   directory: the directory containing Mplus inp files to run. Use forward slashes in directory name (e.g., "C:/Users/Mplus"). Defaults to working directory.
 #   recursive: specifies whether to run inp files in subdirectories beneath the specified directory. Defaults to FALSE. (TRUE or FALSE)
@@ -177,6 +176,7 @@ runModels <- function(directory=getwd(), recursive=FALSE, showOutput=FALSE, repl
   
   #removed from parameter list because no need for user to customize at this point
   translate <- TRUE
+  deleteOnKill <- TRUE #at this point, don't expose this setting to the user
   
   #if log file requested, then open file connection for writing
   if (!is.null(logFile)) {
@@ -234,13 +234,27 @@ runModels <- function(directory=getwd(), recursive=FALSE, showOutput=FALSE, repl
     processList <- ldply(strsplit(shell("wmic process get caption, processid", intern=TRUE), split="\\s+", perl=TRUE), 
         function(element) {
           return(data.frame(procname=element[1], pid=element[2], stringsAsFactors = FALSE))
-        })
+    })
+
     if(length(grep("mplus.exe", processList$procname, ignore.case=TRUE)) > 0) {
       if(isLogOpen()) writeLines("Killing wayward Mplus processes", logTarget)
       shell("taskkill /f /im mplus.exe")
-      
-    #consider deleting unfinished outfile/gph file if we actually terminate
-    #a process.
+
+      #if the process is currently running and we kill it, then the output and gph files will be incomplete.
+      #in general, it would be good to delete these.
+      if(deleteOnKill == TRUE) {
+        noExtension <- substr(absFilename, length(absFilename) - 4, length(absFilename))
+        outDelete <- paste(noExtension, ".out", sep="")
+        gphDelete <- paste(noExtension, ".gph", sep="")
+        if (file.exists(outDelete)) {
+          unlink(outDelete)
+          if(isLogOpen()) writeLines(paste("Deleting unfinished output file:", outDelete), logTarget)
+        }
+        if (file.exists(gphDelete)) {
+          unlink(gphDelete)  
+          if(isLogOpen()) writeLines(paste("Deleting unfinished graph file:", gphDelete), logTarget)
+        }        
+      }      
     }
     
     #close logfile
@@ -248,9 +262,7 @@ runModels <- function(directory=getwd(), recursive=FALSE, showOutput=FALSE, repl
     
     #reset working directory
     setwd(curdir)
-    
-
-  }
+  } #end exitRun definition
   
   on.exit(exitRun())
   
