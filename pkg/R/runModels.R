@@ -1,3 +1,29 @@
+#helper function
+splitFilePath <- function(abspath) {
+  #function to split absolute path into path and filename 
+  #code adapted from R.utils filePath command
+  
+  components <- strsplit(abspath, split="[\\/]")[[1]]
+  lcom <- length(components)
+  
+  stopifnot(lcom > 0)
+  
+  #the file is the last element in the list. In the case of length == 1, this will extract the only element.
+  relFilename <- components[lcom]
+  
+  if (lcom == 1) {
+    dirpart <- NA_character_
+  }
+  else if (lcom > 1) {
+    #drop the file from the list (the last element)
+    components <- components[-lcom]
+    dirpart <- do.call("file.path", as.list(components)) 
+  }
+  
+  return(list(directory=dirpart, filename=relFilename))
+}
+
+
 runModels_Interactive <- function(directory=getwd(), recursive="0", 
     showOutput="1", replaceOutfile="1", checkDate="0", logFile="1")
 {
@@ -45,12 +71,14 @@ runModels_Interactive <- function(directory=getwd(), recursive="0",
   onBrowse <- function(){
     #choose.dir is a prettier way to select directory
     #tclvalue(directoryVariable) <- tclvalue(tkchooseDirectory())
-    tclvalue(directoryVariable) <- tclvalue(tclVar(choose.dir()))
+    runDir <- tclvalue(tclVar(choose.dir(tclvalue(directoryVariable), "Choose the Mplus Run Directory")))
+    if (!runDir == "NA") tclvalue(directoryVariable) <- runDir
   }
   onLogBrowse <- function(){
-    #choose.dir is a prettier way to select directory
-    #tclvalue(directoryVariable) <- tclvalue(tkchooseDirectory())
-    tclvalue(logFile_TCL) <- tclvalue(tkgetSaveFile())
+    splitPath <- splitFilePath(tclvalue(logFile_TCL))
+    #logDir <- tclvalue(tkgetSaveFile(defaultextension="log", initialdir=chartr("/", "\\", splitPath$directory), initialfile=splitPath$filename))
+    logDir <- tclvalue(tkgetSaveFile(defaultextension="log", initialdir=splitPath$directory, initialfile=splitPath$filename))
+    if (!logDir == "") tclvalue(logFile_TCL) <- logDir
   }
   onReplace <- function() {
     curVal <- as.character(tclvalue(replaceOutfileChecked))
@@ -126,7 +154,7 @@ runModels_Interactive <- function(directory=getwd(), recursive="0",
   tkgrid(optionsFrame, sticky="w")  
    
   #setup the filename field for the log file
-  logFile_TCL <- tclVar("")
+  logFile_TCL <- tclVar(file.path(directory, "Mplus Run Models.log"))
   logFrame <- ttkframe(optionsFrame) #borderwidth="5m")
   if (as.logical(as.numeric(logFile)) == TRUE) initialState <- "!disabled"
   else initialState <- "disabled"
@@ -189,31 +217,6 @@ runModels <- function(directory=getwd(), recursive=FALSE, showOutput=FALSE, repl
             paste("\tReplace existing outfile:", replaceOutfile),
             "------"
         ), con=logTarget)
-  }
-  
-  #helper function
-  splitFilePath <- function(abspath) {
-    #function to split absolute path into path and filename 
-    #code adapted from R.utils filePath command
-  
-    components <- strsplit(abspath, split="[\\/]")[[1]]
-    lcom <- length(components)
-    
-    stopifnot(lcom > 0)
-    
-    #the file is the last element in the list. In the case of length == 1, this will extract the only element.
-    relFilename <- components[lcom]
-    
-    if (lcom == 1) {
-      dirpart <- NA_character_
-    }
-    else if (lcom > 1) {
-      #drop the file from the list (the last element)
-      components <- components[-lcom]
-      dirpart <- do.call("file.path", as.list(components)) 
-    }
-        
-    return(list(directory=dirpart, filename=relFilename))
   }
   
   isLogOpen <- function() {
