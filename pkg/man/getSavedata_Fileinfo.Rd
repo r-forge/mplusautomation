@@ -25,12 +25,10 @@ Returns a list of SAVEDATA file information that includes:
 \item{varFormats}{A character vector containing the Fortran-style formats of variables in the dataset.}
 \item{varWidths}{A numeric vector containing the widths of variables in the dataset (which is stored in fixed-width format).}
 }
-\references{
+%\references{
 %% ~put references to the literature/web site here ~
-}
-\author{
-Michael Hallquist
-}
+%}
+\author{Michael Hallquist}
 
 \seealso{
 \code{\link{getSavedata_Data}}

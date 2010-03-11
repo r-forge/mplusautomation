@@ -9,8 +9,9 @@ including the directory for runs, recursing through subdirectories, displaying o
 and replacing existing outfiles.  
 }
 \usage{
-runModels_Interactive(directory = getwd(), recursive = c("0", "1"), showOutput = c("0", "1"),
-	replaceOutfile = c("0","1"), checkDate = c("0", "1"), logFile="1")
+runModels_Interactive(directory = getwd(), recursive = "0", 
+	showOutput = "1", replaceOutfile = "1", checkDate = "0",
+	logFile="1")
 }
 
 \arguments{
@@ -33,12 +34,10 @@ This function exists as a GUI wrapper for \code{runModels} and does not provide 
 \value{
 None. Function is used to display user interface for running models.
 }
-\references{
+%\references{
 %% ~put references to the literature/web site here ~
-}
-\author{
-Michael Hallquist
-}
+%}
+\author{Michael Hallquist}
 \seealso{
 \code{\link{runModels}}
 }

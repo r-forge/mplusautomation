@@ -8,7 +8,7 @@ This function runs a group of Mplus models (.inp files) located within a
 single directory or nested within subdirectories.
 }
 \usage{runModels(directory = getwd(), recursive = FALSE, showOutput = FALSE, 
-	replaceOutfile = c("always", "never", "modifiedDate"), logFile = "Mplus Run Models.log")}
+	replaceOutfile = "always", logFile = "Mplus Run Models.log")}
 \arguments{
   \item{directory}{the directory containing Mplus input files (.inp) to run.
   	Defaults to the current working directory. Example: "C:/Users/Michael/Mplus Runs"
@@ -30,9 +30,9 @@ single directory or nested within subdirectories.
 \value{
 None. Function is used for its side effects (running models).
 }
-\references{
+%\references{
 %% ~put references to the literature/web site here ~
-}
+%}
 \author{Michael Hallquist}
 
 \seealso{
