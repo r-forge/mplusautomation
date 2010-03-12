@@ -1,8 +1,8 @@
 Package: MplusAutomation
 Type: Package
 Title: Automating Mplus Model Estimation and Interpretation
-Version: 0.2-2
-Date: 2010-03-11
+Version: 0.2-3
+Date: 2010-03-12
 Author: Michael Hallquist
 Maintainer: Michael Hallquist <michael.hallquist@gmail.com>
 Description: The MplusAutomation package leverages the flexibility of the 
@@ -11,5 +11,5 @@ Description: The MplusAutomation package leverages the flexibility of the
 	Specifically, MplusAutomation provides routines for creating related groups of models,
 	running batches of models, and extracting and tabulating model parameters and fit statistics. 
 License: LGPL-3
-Depends: gsubfn, xtable, tcltk, plyr
+Depends: gsubfn, xtable, tcltk, plyr, relimp
 LazyLoad: yes
