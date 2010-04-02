@@ -1,8 +1,8 @@
 Package: MplusAutomation
 Type: Package
 Title: Automating Mplus Model Estimation and Interpretation
-Version: 0.2-4
-Date: 2010-03-18
+Version: 0.2-5
+Date: 2010-04-01
 Author: Michael Hallquist
 Maintainer: Michael Hallquist <michael.hallquist@gmail.com>
 Description: The MplusAutomation package leverages the flexibility of the 
