@@ -10,12 +10,6 @@
 #system.time(createModels("C:/Users/Michael Hallquist/Documents/Automation_Sandbox/LSPD Template.txt"))
 #createModels("C:/Users/Michael Hallquist/Documents/Automation_Sandbox/LSPD Template New Init.txt")
 
-#need to think more closely about occasions where there are non-contiguous iterators
-#this would break the array matching syntax, which looks up values by numeric position of the iterator
-#but what about iterator with value 1 5 7, and array is c("a", "b", "c"). Then array[3] is missing, but
-#logically represents value 7. Could work around with a named array that takes the value of the iterator
-#names(array) <- as.character(iterator)
-
 #need to sort out why is.na is working for lookupValue in replaceBodyTags
 #in particular, why isn't the current value carrying over from the previous looping iteration?
 
@@ -348,7 +342,7 @@ recurseReplace <- function(templateTags, initCollection, curiterator=1) {
     #this has the same effect as above (appending as it recurses), but allows for name-based lookup
     initCollection$curItPos[thisIterator] <- i
     
-    print(paste("current iterator is: ", thisIterator, " position:", as.character(i)))
+    #print(paste("current iterator is:", thisIterator, ", position:", as.character(i)))
     
     #process foreach commands
     #For now, take this out
@@ -882,7 +876,7 @@ processInit <- function(initsection) {
 		arglist[[thisIt]] <- sort(unique(arglist[[thisIt]]))
 	}
 	
-	browser()
+	#browser()
 	
   
 	#now that iterators are defined, ensure that list tags match
@@ -918,7 +912,7 @@ processInit <- function(initsection) {
 				return(element)
 			})
 
-	browser()
+	#browser()
 	
 	
   #default output directory to the current directory
@@ -929,4 +923,45 @@ processInit <- function(initsection) {
 	if (is.null(arglist$filename)) stop("No definition provided for the output filename. The filename definition is required.")
   
   return(arglist)
+}
+
+
+#support writing of covariance or means + covariance matrix
+prepareMplusData_Mat <- function(covMatrix, meansMatrix, nobs) {
+	
+}
+
+prepareMplusData <- function(df, filename, keepCols, dropCols) {
+	if (!inherits(df, "data.frame")) stop ("First argument is not a data.frame.")
+	
+	#only allow keep OR drop.
+	if(!missing(keepCols) && !missing(dropCols)) stop("keepCols and dropCols passed to prepareMplusData. You must choose one or the other, but not both.")
+	
+	#keep only columns specified by keepCols
+	if (!missing(keepCols) && length(keepCols) > 0) {
+		df <- df[, keepCols]
+	}
+	
+	#drop columns specified by dropCols
+	if (!missing(dropCols) && length(dropCols) > 0) {
+		#Process vector of columns to drop
+		for (column in dropCols) {
+			df[[column]] <- NULL
+		}
+		
+	}
+	
+	write.table(df, filename, sep="\t", col.names = FALSE, row.names = FALSE, na=".")
+	
+	#variable created for readability
+	variableNames <- paste(names(df), collapse=" ")
+	
+	#short names?
+	#shortNames <- paste(substr(names(df), 1, 8), collapse=" ")
+	
+	cat(c("TITLE: Your title goes here\n",
+					paste("DATA: FILE = \"", filename, "\";\n", sep=""),
+					paste(strwrap(paste("VARIABLE: NAMES = ", variableNames), width=85, exdent=5), collapse="\n"), ";\n\n",
+					"MISSING=.;\n"
+	), sep="")
 }

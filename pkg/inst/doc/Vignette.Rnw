@@ -24,7 +24,7 @@ columns=fullflexible						%makes character spacing nice
 \setlength{\parskip}{0.3cm}
 \title{MplusAutomation Examples}
 \author{Michael N. Hallquist}
-\date{Package version 0.3}
+\date{Package version 0.3-1}
 \maketitle
 \tableofcontents
 \bigskip
@@ -236,7 +236,7 @@ summaryStats <- extractModelSummaries("C:/Data_Analysis/Multiclass Models", file
 \end{lstlisting}
 
 \subsection{Listing of summary statistics extracted by extractModelSummaries}
-As of this version of the package (0.3), the following summary statistics are automatically extracted,
+As of this version of the package (0.3-1), the following summary statistics are automatically extracted,
 when available:
 
 \begin{itemize}
