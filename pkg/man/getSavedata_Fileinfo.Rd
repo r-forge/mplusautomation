@@ -37,9 +37,11 @@ Returns a list of SAVEDATA file information that includes:
 \seealso{
 \code{\link{getSavedata_Data}}
 }
-%\examples{
-%fileInfo <- getSavedata_Fileinfo("C:/Program Files/Mplus/Test Output.out")
-%}
+\examples{
+\dontrun{
+fileInfo <- getSavedata_Fileinfo("C:/Program Files/Mplus/Test Output.out")
+}
+}
 % Add one or more standard keywords, see file 'KEYWORDS' in the
 % R documentation directory.
 \keyword{interface}
