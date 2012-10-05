@@ -30,7 +30,9 @@ l_getSavedata_Fileinfo <- function(outfile, outfiletext) {
   require(gsubfn)
   require(plyr)
   
-  sectionStarts <- c("Order and format of variables", #output from FILE= command (analysis output)
+  sectionStarts <- c("Save file", #flat file
+      "Save file format", #fortran formats
+      "Order and format of variables", #output from FILE= command (analysis output)
       "Estimated Covariance Matrix for the Parameter Estimates", #tech3
       "Estimated Means and Covariance Matrix for the Latent Variables", #tech4
       "Sample/H1/Pooled-Within Matrix", #sample
@@ -52,36 +54,38 @@ l_getSavedata_Fileinfo <- function(outfile, outfiletext) {
   
   #initialize these variables to empty character strings so that list return value is complete
   #important in cases where some savedata output available, but other sections unused
-  listVars <- c("fileName", "fileVarNames", "fileVarFormats", "fileVarWidths", "bayesFile", "bayesVarNames", "tech3File")
+  listVars <- c("saveFile", "fileVarNames", "fileVarFormats", "fileVarWidths", "bayesFile", "bayesVarNames", "tech3File")
   l_ply(listVars, assign, value=NA_character_, envir=environment())
   
+  #in Mplus v7, "Save file" comes before "Order and format of variables"
+  #new approach: process the savedata output more sequentially
+   
   #process FILE= section (individual-level data from analysis)
-  fileSection <- getSection("^\\s*Order and format of variables\\s*$", savedataSection, sectionStarts)
+  #savedata filename
+  saveFile.text <- getSection("^\\s*Save file\\s*$", savedataSection, sectionStarts)
   
-#  savedataSection <- outfiletext[savedataStart:length(outfiletext)]
-#  
-#  fileSectionStart <- grep("^\\s*Order and format of variables\\s*$", savedataSection, ignore.case=TRUE, perl=TRUE)
-#  fileSectionEnd <- grep("^\\s*Save file record length\\s+\\d+$", savedataSection, ignore.case=TRUE, perl=TRUE)
+  if (!is.null(saveFile.text)) {
+    saveFile <- trimSpace(saveFile.text[1]) #first line contains filename
+  }
   
-#  if (length(fileSectionStart) > 0 && length(fileSectionEnd) > 0) {
-#    fileSection <- savedataSection[fileSectionStart:fileSectionEnd]
+  #save file format
+  saveFileFormat.text <- getSection("^\\s*Save file format\\s*$", savedataSection, sectionStarts)
   
-  if (!is.null(fileSection)) {
-    #save data section exists, but doesn't contain this output. Maybe other savedata stuff, like bayesian, tech4, etc.
-    saveFileStart <- grep("^\\s*Save file\\s*$", fileSection, ignore.case=TRUE, perl=TRUE)
-       
-    #dump any blank fields because they will cause nulls in the names, formats, widths.
-    #This is handled by blank.lines.skip=TRUE in wrappers, but readModels needs to retain blank lines
-    #for other functions, so strip here.
-    variablesToParse <- fileSection[1:(saveFileStart-1)]
-    variablesToParse <- variablesToParse[variablesToParse != ""]
+  if (!is.null(saveFileFormat.text)) {
+    saveFileFormat <- trimSpace(saveFileFormat.text[1]) #first line contains format
+  }
+  
+  #file record length
+  #Skip for now
+  
+  orderFormat.text <- getSection("^\\s*Order and format of variables\\s*$", savedataSection, sectionStarts)
+  
+  if (!is.null(orderFormat.text)) {
+    variablesToParse <- orderFormat.text[orderFormat.text != ""]
     
     fileVarNames <- sub("^\\s*([\\w\\d\\.]+)\\s+[\\w\\d\\.]+\\s*$", "\\1", variablesToParse, perl=TRUE)
     fileVarFormats <- sub("^\\s*[\\w\\d\\.]+\\s+([\\w\\d\\.]+)\\s*$", "\\1", variablesToParse, perl=TRUE)
     fileVarWidths <- strapply(fileVarFormats, "[IEFG]+(\\d+)(\\.\\d+)*", as.numeric, perl=TRUE, simplify=TRUE)
-    
-    #trim leading and trailing space from the filename
-    fileName <- trimSpace(fileSection[saveFileStart+1])
     
   }
   
@@ -101,8 +105,8 @@ l_getSavedata_Fileinfo <- function(outfile, outfiletext) {
 	  #just have variable names, no formats
     fileVarNames <- trimSpace(variablesToParse)
 	  
-	  #trim leading and trailing space from the filename
-	  fileName <- trimSpace(mcSection[saveFileStart+1])
+	  #trim leading and trailing space from the saveFile
+	  saveFile <- trimSpace(mcSection[saveFileStart+1])
 	  
   }
   
@@ -155,7 +159,9 @@ l_getSavedata_Fileinfo <- function(outfile, outfiletext) {
   }
 
   #return the file information as a list
-  return(list(fileName=fileName, fileVarNames=fileVarNames, fileVarFormats=fileVarFormats, fileVarWidths=fileVarWidths,
+  #N.B. Would like to shift return to "saveFile", but need to update everywhere and note deprecation in changelog
+
+  return(list(fileName=saveFile, fileVarNames=fileVarNames, fileVarFormats=fileVarFormats, fileVarWidths=fileVarWidths,
           bayesFile=bayesFile, bayesVarNames=bayesVarNames, tech3File=tech3File)) #bayesVarTypes=bayesVarTypes, 
 }
 

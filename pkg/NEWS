@@ -1,3 +1,8 @@
+Version 0.6
+- feature: showSummaryTable, LatexSummaryTable, and HTMLSummaryTable now accept model lists from readModels (no need to extract summaries from each).
+- feature: extractTech1 now parses TAU(U) sections in mixture models with class-varying thresholds.
+- handle Mplus v7 SAVEDATA output, which reordered sections in some cases
+
 Version 0.5-3
 - bugfix:  in runModels, Mplus_command with spaces would cause error because not quoted.
 - bugfix:  testBParamConstraint and testBParamCompoundConstraint did not appropriately combine mcmc lists.

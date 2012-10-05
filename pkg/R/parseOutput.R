@@ -54,8 +54,11 @@ readModels <- function(target=getwd(), recursive=FALSE, filefilter) {
     allFiles[[listID]]$gh5 <- gh5
 	}
 
-  if (length(outfiles)==1)
-    allFiles <- allFiles[[1]] #no need for single top-level element when there is only one file 
+  if (length(outfiles)==1) {
+    allFiles <- allFiles[[1]] #no need for single top-level element when there is only one file    
+  } else {
+    class(allFiles) <- c("list", "mplus.model.list")
+  }
   
   return(allFiles)		
 }
@@ -780,6 +783,13 @@ addHeaderToSavedata <- function(outfile, directory=getwd()) {
 
 #a helper function to be used by wrappers that generate HTML, LaTex, and on-screen displays of summary statistics
 subsetModelList <- function(modelList, keepCols, dropCols, sortBy) {
+  require(plyr)
+  
+  #if passed an mplus.model.list from readModels, then just extract summaries for disply
+  if (inherits(modelList, "mplus.model.list")) {
+    modelList <- do.call("rbind.fill", sapply(modelList, "[", "summaries"))
+  }
+  
   #only allow keep OR drop.
   if(!missing(keepCols) && !missing(dropCols)) stop("keepCols and dropCols passed to subsetModelList. You must choose one or the other, but not both.")
     
@@ -1026,6 +1036,14 @@ extractTech1 <- function(outfiletext, filename) {
     targetList[["gamma.c"]] <- matrixExtract(paramSpecSubsections[[g]], "GAMMA\\(C\\)", filename)
     targetList[["alpha.c"]] <- matrixExtract(paramSpecSubsections[[g]], "ALPHA\\(C\\)", filename)
     
+    #latent class indicator part includes subsections for each latent class, such as class-varying thresholds
+    if (groupNames[g] == "LATENT.CLASS.INDICATOR.MODEL.PART") {
+      tauLines <- grep("TAU\\(U\\) FOR LATENT CLASS \\d+", paramSpecSubsections[[g]], perl=TRUE, value=TRUE)
+      uniqueLC <- unique(gsub("^\\s*TAU\\(U\\) FOR LATENT CLASS (\\d+)\\s*$", "\\1", tauLines, perl=TRUE))
+      for (lc in uniqueLC) {
+        targetList[[paste0("tau.u.lc", lc)]] <- matrixExtract(paramSpecSubsections[[g]], paste0("TAU\\(U\\) FOR LATENT CLASS ", lc), filename)        
+      }
+    }
     
     if (length(paramSpecSubsections) > 1) {
       class(targetList) <- c("list", "mplus.parameterSpecification")
@@ -1062,7 +1080,16 @@ extractTech1 <- function(outfiletext, filename) {
     targetList[["psi"]] <- matrixExtract(startValSubsections[[g]], "PSI", filename)
     targetList[["gamma.c"]] <- matrixExtract(startValSubsections[[g]], "GAMMA\\(C\\)", filename)
     targetList[["alpha.c"]] <- matrixExtract(startValSubsections[[g]], "ALPHA\\(C\\)", filename)
-        
+    
+    #latent class indicator part includes subsections for each latent class, such as class-varying thresholds
+    if (groupNames[g] == "LATENT.CLASS.INDICATOR.MODEL.PART") {
+      tauLines <- grep("TAU\\(U\\) FOR LATENT CLASS \\d+", startValSubsections[[g]], perl=TRUE, value=TRUE)
+      uniqueLC <- unique(gsub("^\\s*TAU\\(U\\) FOR LATENT CLASS (\\d+)\\s*$", "\\1", tauLines, perl=TRUE))
+      for (lc in uniqueLC) {
+        targetList[[paste0("tau.u.lc", lc)]] <- matrixExtract(startValSubsections[[g]], paste0("TAU\\(U\\) FOR LATENT CLASS ", lc), filename)        
+      }
+    }
+    
     if (length(startValSubsections) > 1) {
       class(targetList) <- c("list", "mplus.startingValues")
       startValList[[groupNames[g]]] <- targetList
