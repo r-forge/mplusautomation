@@ -30,6 +30,8 @@ readModels <- function(target=getwd(), recursive=FALSE, filefilter) {
     allFiles[[listID]]$tech3 <- extractTech3(outfiletext, fileInfo, curfile) #covariance/correlation matrix of parameter estimates
     allFiles[[listID]]$tech4 <- extractTech4(outfiletext, curfile) #latent means
     
+    #allFiles[[listID]]$facscores <- extractFacScores(outfiletext, curfile) #factor scores output...
+    
     #aux(e) means
     allFiles[[listID]]$lcCondMeans <- extractAuxE_1file(outfiletext, curfile)
     
@@ -479,7 +481,7 @@ extractSummaries_1file <- function(outfiletext, filename, extract=c("Title", "LL
   startInput <- grep("^\\s*INPUT INSTRUCTIONS\\s*$", outfiletext, ignore.case=TRUE, perl=TRUE)
   if (length(startInput) == 0) warning("Could not find beginning of input")
      
-  endInput <- grep("^\\s*(INPUT READING TERMINATED NORMALLY|\\d+ WARNING\\(S\\) FOUND IN THE INPUT INSTRUCTIONS|\\*\\*\\* ERROR.*)\\s*$", outfiletext, ignore.case=TRUE, perl=TRUE)
+  endInput <- grep("^\\s*(INPUT READING TERMINATED NORMALLY|\\d+ (?:ERROR|WARNING)\\(S\\) FOUND IN THE INPUT INSTRUCTIONS|\\*\\*\\* ERROR.*)\\s*$", outfiletext, ignore.case=TRUE, perl=TRUE)
   if (length(endInput) == 0) warning("Could not find end of input")
 
   inputSection <- outfiletext[(startInput+1):(endInput-1)]
@@ -497,7 +499,7 @@ extractSummaries_1file <- function(outfiletext, filename, extract=c("Title", "LL
       title <- paste(inputSection[titleStart:titleEnd], collapse=" ")
       
       #delete the "Title: " piece from the match       
-      title <- sub("^\\s*title:\\s+", "", title, ignore.case=TRUE, perl=TRUE)
+      title <- sub("^\\s*title:\\s*", "", title, ignore.case=TRUE, perl=TRUE)
       
       #convert multiple spaces into a single space (occurs when title spans many lines and has indentation)
       title <- gsub("\\s+", " ", title, ignore.case=TRUE, perl=TRUE)
@@ -1021,6 +1023,8 @@ extractTech1 <- function(outfiletext, filename) {
     warning ("No parameter specfication sections found within TECH1 output.")
   else if (length(paramSpecSubsections) > 1)
     groupNames <- make.names(gsub("^\\s*PARAMETER SPECIFICATION( FOR ([\\w\\d\\s\\.,]+))*\\s*$", "\\2", tech1Section[matchlines], perl=TRUE))
+  else #just one section, no groups
+    groupNames <- ""
 
   for (g in 1:length(paramSpecSubsections)) {
     targetList <- list()
@@ -1065,7 +1069,9 @@ extractTech1 <- function(outfiletext, filename) {
   if (length(startValSubsections) == 0)
     warning ("No starting value sections found within TECH1 output.")
   else if (length(startValSubsections) > 1)
-    groupNames <- make.names(gsub("^\\s*STARTING VALUES( FOR ([\\w\\d\\s\\.,]+))*\\s*$", "\\2", tech1Section[matchlines], perl=TRUE))    
+    groupNames <- make.names(gsub("^\\s*STARTING VALUES( FOR ([\\w\\d\\s\\.,]+))*\\s*$", "\\2", tech1Section[matchlines], perl=TRUE))
+  else
+    groupNames <- ""
 
   for (g in 1:length(startValSubsections)) {
     targetList <- list()
@@ -1240,6 +1246,17 @@ extractTech10 <- function(outfiletext, filename) {
   tech10List <- list()
   
 }
+
+extractFacScoresStats <- function(outfiletext, filename) {
+  fssSection <- getSection("^SAMPLE STATISTICS FOR ESTIMATED FACTOR SCORES$", outfiletext)
+  if (is.null(fssSection)) return(list()) #no factor scores output
+  
+  fssList <- list()
+  
+  
+  
+}
+
 
 extractClassCounts <- function(outfiletext, filename) {
 

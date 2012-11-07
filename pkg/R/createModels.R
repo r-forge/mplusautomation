@@ -150,7 +150,7 @@ parseTags <- function(bodySection, initCollection) {
 createModels <- function(templatefile) {
   if (!file.exists(templatefile)) stop("Template file not found.")
   
-  readfile <- scan(templatefile, what="character", sep="\n", strip.white=FALSE)
+  readfile <- scan(templatefile, what="character", sep="\n", strip.white=FALSE, blank.lines.skip=FALSE)
   
   #divide into init versus body
   startinit <- grep("[[init]]", readfile, fixed=T)
@@ -585,7 +585,7 @@ finalizeInitCollection <- function(initCollection) {
             #use named array look-up  
             iteratorPosition <- initCollection$curItPos[split[2]]
             
-            currentValue <- eval(parse(text=paste("initCollection$", split[1], "[", initCollection$curItPos[iteratorPosition], "]", sep="")))
+            currentValue <- eval(parse(text=paste("initCollection$", split[1], "[", iteratorPosition, "]", sep="")))
             if (is.null(currentValue)) stop("When replacing tag: ", row$tag, ", could not find corresponding value.")
             return(currentValue)
           }
