@@ -47,7 +47,7 @@ compareModels <- function(m1, m2, show="all", equalityMargin=c(param=0.0001, pva
     
     #compare basic stuff
     
-    sumCombined <- rbind.fill(m1Summaries, m2Summaries)
+    sumCombined <- plyr::rbind.fill(m1Summaries, m2Summaries)
     
     if (!"allsummaries" %in% show) {
       comparators <- c("Title", "Observations", "Estimator", "Parameters", "LL", "AIC", "BIC", "ChiSqM_Value", "ChiSqM_DF",

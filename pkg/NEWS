@@ -1,10 +1,12 @@
 Version 0.5-4
+- feature: Mplus software version now extracted as Mplus.version in model summaries.
 - feature: showSummaryTable, LatexSummaryTable, and HTMLSummaryTable now accept model lists from readModels (no need to extract summaries from each).
 - feature: extractTech1 now parses TAU(U) sections in mixture models with class-varying thresholds.
 - handle Mplus v7 SAVEDATA output, which reordered sections in some cases
-- bugfix: createModels value lookup during init processing was broken. Thanks to Ronkko Mikko for the bugfix.
-- bugfix: finding the end of the input was failing when an error was encountered in Mplus parsing the input. 
 - to enhance formatting, createModels no longer strips blank lines from the template file. Thanks to Ronkko Mikko for the suggestion.
+- bugfix: createModels value lookup during init processing was broken. Thanks to Ronkko Mikko for the bugfix.
+- bugfix: finding the end of the input was failing when an error was encountered in Mplus parsing the input.
+- bugfix: plyr 1.8 rbind.fill no longer accepts NULL inputs, which was breaking model summary extraction.
 
 Version 0.5-3
 - bugfix:  in runModels, Mplus_command with spaces would cause error because not quoted.

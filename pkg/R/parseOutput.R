@@ -484,8 +484,13 @@ extractSummaries_1file <- function(outfiletext, filename, extract=c("Title", "LL
   endInput <- grep("^\\s*(INPUT READING TERMINATED NORMALLY|\\d+ (?:ERROR|WARNING)\\(S\\) FOUND IN THE INPUT INSTRUCTIONS|\\*\\*\\* ERROR.*)\\s*$", outfiletext, ignore.case=TRUE, perl=TRUE)
   if (length(endInput) == 0) warning("Could not find end of input")
 
-  inputSection <- outfiletext[(startInput+1):(endInput-1)]
+  inputSection <- outfiletext[(startInput[1L] + 1):(endInput[1L] - 1)] #explicit first element because there could be both warnings and errors.
   inputHeaders <- grep("^\\s*(data:|variable:|define:|analysis:|model:|output:|savedata:|plot:|montecarlo:)", inputSection, ignore.case=TRUE, perl=TRUE)
+  
+  #OBTAIN MPLUS SOFTWARE VERSION
+  if ((mplus.version <- regexpr("\\s*Mplus VERSION ([\\d\\.]+)\\s*", outfiletext[1L], perl=TRUE)) > 0L) {
+    arglist$Mplus.version <- substr(outfiletext[1L], attr(mplus.version, "capture.start")[1L], attr(mplus.version, "capture.start")[1L] + attr(mplus.version, "capture.length")[1L] - 1)    
+  }
   
   #PROCESS TITLE
   if ("Title" %in% extract) {
@@ -746,7 +751,7 @@ extractModelSummaries <- function(target=getwd(), recursive=FALSE, filefilter) {
   
 	outfiles <- getOutFileList(target, recursive, filefilter)
 	
-  details <- c()
+  details <- list()
   
   #for each output file, use the extractSummaries_1file function to extract relevant data
   #note that extractSummaries_1file returns data as a list
@@ -763,8 +768,13 @@ extractModelSummaries <- function(target=getwd(), recursive=FALSE, filefilter) {
     
     #append params for this file to the details array
     #note that this is a memory-inefficient solution because of repeated copying. Better to pre-allocate.
-		details <- rbind.fill(details, extractSummaries_1file(readfile, outfiles[i]))
+		
+    details[[i]] <- extractSummaries_1file(readfile, outfiles[i])        
   }
+  
+  #if there are several output files, then use rbind.fill to align fields
+  if (length(details) > 1L) details <- do.call(plyr::rbind.fill, details)
+  else details <- details[[1L]]
   
   #reset working directory
   setwd(curdir)

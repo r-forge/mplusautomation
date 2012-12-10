@@ -89,25 +89,20 @@ l_getSavedata_Fileinfo <- function(outfile, outfiletext) {
     
   }
   
-  #Monte carlo output
-  mcSection <- getSection("^\\s*Order of variables\\s*$", savedataSection, sectionStarts)
+  #Monte carlo output: contains only order of variables, not their format
+  order.text <- getSection("^\\s*Order of variables\\s*$", savedataSection, sectionStarts)
   
-  if (!is.null(mcSection)) {
+  if (!is.null(order.text)) {
 	  #save data section exists, but doesn't contain this output. Maybe other savedata stuff, like bayesian, tech4, etc.
-	  saveFileStart <- grep("^\\s*Save file\\s*$", mcSection, ignore.case=TRUE, perl=TRUE)
 	  
 	  #dump any blank fields because they will cause nulls in the names, formats, widths.
 	  #This is handled by blank.lines.skip=TRUE in wrappers, but readModels needs to retain blank lines
 	  #for other functions, so strip here.
-	  variablesToParse <- mcSection[1:(saveFileStart-1)]
-	  variablesToParse <- variablesToParse[variablesToParse != ""]
+	  variablesToParse <- order.text[order.text != ""]
 	  
 	  #just have variable names, no formats
     fileVarNames <- trimSpace(variablesToParse)
-	  
-	  #trim leading and trailing space from the saveFile
-	  saveFile <- trimSpace(mcSection[saveFileStart+1])
-	  
+	  	  
   }
   
   #Bayesian parameters section
