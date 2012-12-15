@@ -66,7 +66,8 @@ classifyTags <- function(tagVector, iteratorsVector) {
     array = paste0("\\[\\[\\s*\\b([\\w\\.]+)#(", paste(iteratorsVector, collapse="|"), ")\\b\\s*\\]\\]"),
 
     #optional forward slash for closing tags
-    #could the alternation syntax be problematic if variable names overlaps (e.g., x matching xy)? Use word boundaries?
+    #could the alternation syntax be problematic if variable names overlaps
+    #(e.g., x matching xy)? Use word boundaries?
     #any reason to limit this to iterators?!
     conditional = paste0("\\[\\[\\s*/*(", paste(iteratorsVector, collapse="|"), ")\\s*[!><=]+\\s*\\d+\\s*\\]\\]"),
 
@@ -126,8 +127,8 @@ getInitTags <- function(initCollection) {
     #chop off the [[ ]] portion of the tags, along with any leading or trailing space
     #this makes it easier to use the sub function to update current values
     initMatches$tag <- sapply(initMatches$tag, function(tag) {
-          return(sub("\\[\\[\\s*([\\s\\w=><!#/]+)\\s*\\]\\]", "\\1", tag, perl=TRUE))
-        })
+      return(sub("\\[\\[\\s*([\\s\\w=><!#/]+)\\s*\\]\\]", "\\1", tag, perl=TRUE))
+    })
   }
 
   #return empty data frame if no matches
@@ -135,13 +136,22 @@ getInitTags <- function(initCollection) {
   else return(initMatches)
 }
 
+#' Parses tags in the body section
+#'
+#' Parses tags in the body section (character vector) and
+#' init collection (list of vars defined in the init section).
+#' This is an internal function.
+#'
+#' @param bodySection The body
+#' @param initCollection The initial collection
+#' @return A list with three elements, where each list represents the location,
+#' start character, end character, tag type, etc. of each tag.
+#' \describe{
+#'   \item{initTags}{initMatches}
+#'   \item{bodyTags}{bodyMatches}
+#'   \item{bodyText}{bodySection}
+#' }
 parseTags <- function(bodySection, initCollection) {
-  #parses tags in the body section (character vector) and
-  #init collection (list of vars defined in the init section
-  #returns a list with $initTags and $bodyTags
-  #where each list represents the location, start character, end character, tag type, etc.
-  #of each tag
-
   #first handle init tags
   initMatches <- getInitTags(initCollection)
 
@@ -160,23 +170,38 @@ parseTags <- function(bodySection, initCollection) {
 
   #chop off the [[ ]] portion of the tags, along with any leading or trailing space
   bodyMatches$tag <- sapply(bodyMatches$tag, function(tag) {
-        return(sub("\\[\\[\\s*([\\s\\w=><!#/]+)\\s*\\]\\]", "\\1", tag, perl=TRUE))
-      })
+    return(sub("\\[\\[\\s*([\\s\\w=><!#/]+)\\s*\\]\\]", "\\1", tag, perl=TRUE))
+  })
 
   #return a three-element list with constituent data frames for init and body tags.
-	return(list(initTags=initMatches, bodyTags=bodyMatches, bodyText=bodySection))
-
+  return(list(initTags=initMatches, bodyTags=bodyMatches, bodyText=bodySection))
 }
 
-
-#should probably have the function cd to wherever the template file is located (if given as abs path)
-#todo: allow for direct runs?
+#' Create Mplus Input Files from Template
+#'
+#' The \code{createModels} function processes a single Mplus template file and creates a group of related
+#' model input files. Definitions and examples for the template language are provided in the MplusAutomation
+#' vignette and are not duplicated here at the moment. See this PDF:
+#' \url{http://cran.r-project.org/web/packages/MplusAutomation/vignettes/Vignette.pdf}
+#'
+#' @param templatefile The filename (absolute or relative path) of an Mplus template file to be processed. Example \dQuote{C:/MplusTemplate.txt}
+#' @return No value is returned by this function. It is solely used to process an Mplus template file.
+#' @author Michael Hallquist
+#' @keyword interface
+#' @export
+#' @examples
+#' \dontrun{
+#'   createModels("L2 Multimodel Template No iter.txt")
+#' }
 createModels <- function(templatefile) {
+# should probably have the function cd to wherever the template file is located (if given as abs path)
+# todo: allow for direct runs?
+
   if (!file.exists(templatefile)) stop("Template file not found.")
 
   readfile <- scan(templatefile, what="character", sep="\n", strip.white=FALSE, blank.lines.skip=FALSE)
 
-  #divide into init versus body
+  # divide into init versus body
   startinit <- grep("[[init]]", readfile, fixed=T)
   endinit <- grep("[[/init]]", readfile, fixed=T)
 
@@ -184,32 +209,37 @@ createModels <- function(templatefile) {
     stop("Unable to find init section in template file.")
   }
 
-  #extract init section
+  # extract init section
   initSection <- readfile[(startinit+1):(endinit-1)]
 
-  #extract body section
+  # extract body section
   bodySection <- readfile[(endinit+1):length(readfile)]
 
-  #convert the init text into a list object containing parsed init instructions
+  # convert the init text into a list object containing parsed init instructions
   initCollection <- processInit(initSection)
 
   templateTags <- parseTags(bodySection, initCollection)
 
-  #lookup values for simple tags, which won't vary by iterator
+  # lookup values for simple tags, which won't vary by iterator
   templateTags <- lookupSimpleTags(templateTags, initCollection)
 
-  #kick off the recursive replace
+  # kick off the recursive replace
   if (length(initCollection$iterators) > 0) {
     recurseReplace(templateTags, initCollection)
   }
 }
 
+#' Simple tag lookup
+#'
+#' The purpose of this function is to set the currentValue column
+#' for the bodyTags and initTags data.frames for simple tags only.
+#' Most values will be replaced at the bottom level of recursion,
+#' but simple tags do not change over iterations, so can be set one time.
+#'
+#' @param templateTags The template tags
+#' @param initCollection The initial collection
+#' @return A tag.
 lookupSimpleTags <- function(templateTags, initCollection) {
-  #the purpose of this function is to set the currentValue column
-  #for the bodyTags and initTags data.frames for simple tags only.
-  #Most values will be replaced at the bottom level of recursion,
-  #but simple tags do not change over iterations, so can be set one time.
-
 #  #locate simple tags in body
 #  simpleBodyPositions <- which(templateTags$bodyTags$tagType=="simple")
 #
@@ -230,13 +260,13 @@ lookupSimpleTags <- function(templateTags, initCollection) {
   #locate simple tags in init
   simpleInitPositions <- which(templateTags$initTags$tagType=="simple")
 
-  templateTags$initTags$currentValue[simpleInitPositions] <- sapply(templateTags$initTags$tag[simpleInitPositions],
-      function(value) {
-        return(eval(parse(text=paste("initCollection$", value, sep=""))))
-      })
+  templateTags$initTags$currentValue[simpleInitPositions] <- sapply(
+    templateTags$initTags$tag[simpleInitPositions],
+    function(value) {
+      return(eval(parse(text=paste0("initCollection$", value))))
+    })
 
   return(templateTags)
-
 }
 
 #Better idea: only updateCurrentValues for init tags collection
@@ -247,54 +277,63 @@ lookupSimpleTags <- function(templateTags, initCollection) {
 
 #Only need to update values for a given iterator....
 #The issue is that values for a given iterator shouldn't change when another iterator is active
-
-
 updateCurrentValues <- function(templateTags, initCollection) {
   #need to replace array and iterator tags for this iterator
 
   #locate iterator tags in init
-  initIteratorPositions <- which(templateTags$initTags$tagType=="iterator" & templateTags$initTags$tag == initCollection$curIteratorName)
+  initIteratorPositions <- which(
+    templateTags$initTags$tagType=="iterator" &
+    templateTags$initTags$tag == initCollection$curIteratorName)
 
   #set the current value to the position in the looping process for this iterator
   templateTags$initTags$currentValue[initIteratorPositions] <- initCollection$curItPos[initCollection$curIteratorDepth]
 
-  #okay, allow for iterator lookups here... just to an is.na check in the replaceBodyTags
+  #allow for iterator lookups here... just to an is.na check in the replaceBodyTags
   #locate iterator tags in body
-  bodyIteratorPositions <- which(templateTags$bodyTags$tagType=="iterator" & templateTags$bodyTags$tag == initCollection$curIteratorName)
+  bodyIteratorPositions <- which(
+    templateTags$bodyTags$tagType == "iterator" &
+    templateTags$bodyTags$tag == initCollection$curIteratorName)
 
   templateTags$bodyTags$currentValue[bodyIteratorPositions] <- initCollection$curItPos[initCollection$curIteratorDepth]
 
-  #Next, handle array tags
-  #figure out the iterator for each array tag and only select those that are relevant to the current iterator
+  # Next, handle array tags
+  # figure out the iterator for each array tag and only select
+  # those that are relevant to the current iterator
   initArrayPositions <- which(templateTags$initTags$tagType=="array")
 
-	#only update values if any array tags are found (generates an error otherwise because of weird format from splitter_a
-	if (length(initArrayPositions) > 0) {
+  # only update values if any array tags are found
+  # (generates an error otherwise because of weird format from splitter_a
+  if (length(initArrayPositions) > 0) {
 
-	  #use plyr's splitter_a function to divide dataset by row (builds a big list)
-		#20Jul2010: Had to call splitter function directly, ignoring namespace because plyr 1.0 hid this.
-	  #divideByRow <- plyr:::splitter_a(templateTags$initTags[initArrayPositions,], 1)
-		#actually, splitter_a no longer has the same return type (it's now an environment)
-		#would have to call row$data$tag... just replace with homespun function defined above.
+    # use plyr's splitter_a function to divide dataset by row (builds a big list)
+    # 20Jul2010: Had to call splitter function directly, ignoring namespace because plyr 1.0 hid this.
+    # divideByRow <- plyr:::splitter_a(templateTags$initTags[initArrayPositions,], 1)
+    # actually, splitter_a no longer has the same return type (it's now an environment)
+    # would have to call row$data$tag... just replace with homespun function defined above.
 
-		divideByRow <- splitDFByRow(templateTags$initTags[initArrayPositions,])
+    divideByRow <- splitDFByRow(templateTags$initTags[initArrayPositions,])
 
 
-	  #for each element of the list, check for a match with this iterator and return the value of interest
-	  #if the array tag is not for this iterator, return the current value unchanged
-	  templateTags$initTags$currentValue[initArrayPositions] <- unlist(sapply(divideByRow,
-	      function(row) {
-					split <- strsplit(row$tag, split="#", fixed=TRUE)[[1]]
-	        if (length(split) != 2) stop("array tag missing iterator: ", row$tag)
+    #for each element of the list, check for a match with this iterator and return the value of interest
+    #if the array tag is not for this iterator, return the current value unchanged
+    templateTags$initTags$currentValue[initArrayPositions] <- unlist(sapply(divideByRow,
+      function(row) {
+        split <- strsplit(row$tag, split="#", fixed=TRUE)[[1]]
+        if (length(split) != 2) stop("array tag missing iterator: ", row$tag)
 
-	        if (split[2] == initCollection$curIteratorName) {
-	          currentValue <- eval(parse(text=paste("initCollection$", split[1], "[", initCollection$curItPos[initCollection$curIteratorDepth], "]", sep="")))
-	          if (is.null(currentValue)) stop("When replacing tag: ", row$tag, ", could not find corresponding value.")
-	          return(currentValue)
-	        }
-	        else return(row$currentValue) #return unchanged current value if not this iterator
-	      }))
-	}
+        if (split[2] == initCollection$curIteratorName) {
+          currentValue <- eval(parse(text =
+            paste0("initCollection$", split[1], "[",
+            initCollection$curItPos[initCollection$curIteratorDepth], "]")))
+
+          if (is.null(currentValue)) stop("When replacing tag: ", row$tag, ", could not find corresponding value.")
+          return(currentValue)
+        } else {
+          # return unchanged current value if not this iterator
+          return(row$currentValue)
+        }
+      }))
+  }
 
 # for now, we don't use any current values for body tags collection (handled at bottom)
 #  #conduct same process for body tags: locate array tags and update values for this iterator
@@ -381,19 +420,18 @@ recurseReplace <- function(templateTags, initCollection, curiterator=1) {
       #this avoids having to think about reparsing the tags based on new code created by foreach
 
       recurseReplace(templateTags, initCollection, curiterator = curiterator+1)
-    }
-    else {
+    } else {
       #we have reached the bottom of the iteration tree
       #simple, array, and iterator tags should be up to date in the templateTags collection
 
       #first delete conditional tags from the body section, reduce subsequent processing burden
       #need to return templateTags collection from processConditionalTags (including bodyText)
 
-			#need to use a copy of templateTags to avoid it affecting subsequent loop iterations
-			finalTemplateTags <- processConditionalTags(templateTags, initCollection)
+      #need to use a copy of templateTags to avoid it affecting subsequent loop iterations
+      finalTemplateTags <- processConditionalTags(templateTags, initCollection)
 
-			#the body section to write is stored in the templateTags collection
-			toWrite <- finalTemplateTags$bodyText
+      #the body section to write is stored in the templateTags collection
+      toWrite <- finalTemplateTags$bodyText
 
       #create a separate initCollection with the appropriate values substituted.
       finalInitCollection <- replaceInitTags(finalTemplateTags$initTags, initCollection)
@@ -414,50 +452,61 @@ recurseReplace <- function(templateTags, initCollection, curiterator=1) {
       outputDir <- finalInitCollection$outputDirectory
 
       if (!file.exists(outputDir)) {
-        dir.create(outputDir, recursive=T)
+        dir.create(outputDir, recursive=TRUE)
       }
 
       setwd(outputDir)
 
       #make sure that no line is more than 90 chars
       toWrite <- unlist(lapply(toWrite, function(line) {
-                if (nchar(line) > 90) {
-                  strwrap(line, width=85, exdent=5)
-                }
-                else line
-              }))
+        if (nchar(line) > 90) {
+          strwrap(line, width=85, exdent=5)
+        } else {
+          line
+        }
+      }))
 
       writeLines(toWrite, con = filename, sep = "\n")
 
       setwd(curdir)
-
     }
   }
 }
 
 replaceInitTags <- function(initTags, initCollection) {
   targetRows <- which(initTags$tagType %in% c("simple", "iterator", "array"))
-  targetTags <- initTags[targetRows,]
+  targetTags <- initTags[targetRows, ]
   targetTags$rownumber <- 1:nrow(targetTags)
 
-  #going to re-use this chunk in finalizeSubstitutions, so functionalize... consider the looping replacement here
+  #going to re-use this chunk in finalizeSubstitutions, so functionalize...
+  #consider the looping replacement here
   for (i in 1:nrow(targetTags)) {
-    row <- targetTags[i,]
+    row <- targetTags[i, ]
     stringToChange <- initCollection[[row$listpos]][row$element]
 
-    if(row$start > 1) preTag <- substr(stringToChange, 1, row$start-1)
-    else preTag <- ""
+    if(row$start > 1) {
+      preTag <- substr(stringToChange, 1, row$start - 1)
+    } else {
+      preTag <- ""
+    }
 
-    if(row$end < nchar(stringToChange)) postTag <- substr(stringToChange, row$end+1, nchar(stringToChange))
-    else postTag <- ""
+    if (row$end < nchar(stringToChange)) {
+      postTag <- substr(stringToChange, row$end+1, nchar(stringToChange))
+    } else {
+      postTag <- ""
+    }
 
-    initCollection[[row$listpos]][row$element] <- paste(preTag, row$currentValue, postTag, sep="")
+    initCollection[[row$listpos]][row$element] <- paste0(preTag, row$currentValue, postTag)
 
-    subsequentRows <- which(targetTags$rownumber > i & targetTags$listpos==row$listpos & targetTags$element==row$element)
+    subsequentRows <- which(
+      targetTags$rownumber > i &
+      targetTags$listpos == row$listpos &
+      targetTags$element == row$element)
 
     if (length(subsequentRows > 0)) {
 
-      #need to offset subsequent start/stops by the difference between the tag and replacement lengths
+      #need to offset subsequent start/stops by the difference
+      #between the tag and replacement lengths
       diffLength <- nchar(row$currentValue) - (row$end - row$start + 1)
 
       #update rows in targetTags that have additional tags on the same row
@@ -468,9 +517,10 @@ replaceInitTags <- function(initTags, initCollection) {
   }
 
   #refresh the initTags collection with the replaced values
-  #need to dump the rownumber to align the data.frames (templateTags doesn't have a rownumber field)
+  #need to dump the rownumber to align the data.frames
+  # (templateTags doesn't have a rownumber field)
   targetTags$rownumber <- NULL
-  initTags[targetRows,] <- targetTags
+  initTags[targetRows, ] <- targetTags
 
   #return(initTags)
   #browser()
@@ -485,9 +535,9 @@ replaceBodyTags <- function(bodySection, bodyTags, initCollection) {
   #hmm, actually seems futile to do a replacement in the init section
   #these are already set by update values.... won't affect the body section
 
-# so we need to finalize the tag substitutions...
-# the idea is that we need to convert all tags to literals in the initCollection
-# once this is done, then we replace all deferred tags in the body section
+  # so we need to finalize the tag substitutions...
+  # the idea is that we need to convert all tags to literals in the initCollection
+  # once this is done, then we replace all deferred tags in the body section
 
 
   #don't update current values if initcollection value contains any tag
@@ -504,25 +554,33 @@ replaceBodyTags <- function(bodySection, bodyTags, initCollection) {
   #like ddply by the tag
 
   for (i in 1:nrow(targetTags)) {
-    row <- targetTags[i,]
+    row <- targetTags[i, ]
     stringToChange <- bodySection[row$element]
 
-    if(row$start > 1) preTag <- substr(stringToChange, 1, row$start-1)
-    else preTag <- ""
+    if (row$start > 1) {
+      preTag <- substr(stringToChange, 1, row$start-1)
+    } else {
+      preTag <- ""
+    }
 
-    if(row$end < nchar(stringToChange)) postTag <- substr(stringToChange, row$end+1, nchar(stringToChange))
-    else postTag <- ""
+    if (row$end < nchar(stringToChange)) {
+      postTag <- substr(stringToChange, row$end+1, nchar(stringToChange))
+    } else {
+      postTag <- ""
+    }
 
     #lookup value as needed
     if (is.na(row$currentValue)) row$currentValue <- lookupValue(row$tag, row$tagType, initCollection)
     #row$currentValue <- lookupValue(row$tag, row$tagType, initCollection)
 
-    bodySection[row$element] <- paste(preTag, row$currentValue, postTag, sep="")
+    bodySection[row$element] <- paste0(preTag, row$currentValue, postTag)
 
     #need to offset subsequent start/stops by the difference between the tag and replacement lengths
     diffLength <- nchar(row$currentValue) - (row$end - row$start + 1)
 
-    subsequentRows <- which(targetTags$rownumber > i & targetTags$element==row$element)
+    subsequentRows <- which(
+      targetTags$rownumber > i &
+      targetTags$element == row$element)
 
     if (length(subsequentRows > 0)) {
       #update rows in targetTags that have additional tags on the same row
@@ -541,7 +599,7 @@ lookupValue <- function(tag, tagType, initCollection) {
   if (missing(tagType)) stop("No tag type provided")
 
   if (tagType == "simple") {
-    return(eval(parse(text=paste("initCollection$", tag, sep=""))))
+    return(eval(parse(text=paste0("initCollection$", tag))))
   }
   else if (tagType == "array") {
     split <- strsplit(tag, split="#", fixed=TRUE)[[1]]
@@ -553,9 +611,13 @@ lookupValue <- function(tag, tagType, initCollection) {
     #use named array look-up
     iteratorPosition <- initCollection$curItPos[split[2]]
 
-		#note that the padding performed by processInit should handle non-contiguous iteratorPosition values here.
-    currentValue <- eval(parse(text=paste("initCollection$", split[1], "[", iteratorPosition, "]", sep="")))
-    if (is.null(currentValue)) stop("When replacing tag: ", row$tag, ", could not find corresponding value.")
+    #note that the padding performed by processInit should handle non-contiguous iteratorPosition values here.
+    currentValue <- eval(parse(text=paste0("initCollection$", split[1], "[", iteratorPosition, "]")))
+
+    if (is.null(currentValue)) {
+      stop("When replacing tag: ", row$tag, ", could not find corresponding value.")
+    }
+
     return(currentValue)
   }
 }
@@ -586,34 +648,38 @@ finalizeInitCollection <- function(initCollection) {
     if (nrow(initTags) == 0) break #some tags, but none of the simple or array variety, which we want to replace
 
     #use plyr's splitter_a function to divide dataset by row (builds a big list)
-		#divideByRow <- plyr:::splitter_a(initTags, 1)
-		divideByRow <- splitDFByRow(initTags)
+    #divideByRow <- plyr:::splitter_a(initTags, 1)
+    divideByRow <- splitDFByRow(initTags)
 
     #for each element of the list, check for a match with this iterator and return the value of interest
     initTags$currentValue <- unlist(sapply(divideByRow,
-        function(row) {
-          if (row$tagType == "simple") {
-            return(eval(parse(text=paste("initCollection$", row$tag, sep=""))))
-          }
-          else if (row$tagType == "iterator") {
-            #an iterator tag was nested
-            return(initCollection$curItPos[row$tag])
-          }
-          else if (row$tagType == "array") {
-            split <- strsplit(row$tag, split="#", fixed=TRUE)[[1]]
-            if (length(split) != 2) stop("array tag missing iterator: ", row$tag)
-
-            #find where in the iterator depth this iterator lies
-            #iteratorPosition <- grep(paste("\\b", split[2], "\\b", sep=""), initCollection$iterators, perl=T)
-
-            #use named array look-up
-            iteratorPosition <- initCollection$curItPos[split[2]]
-
-            currentValue <- eval(parse(text=paste("initCollection$", split[1], "[", iteratorPosition, "]", sep="")))
-            if (is.null(currentValue)) stop("When replacing tag: ", row$tag, ", could not find corresponding value.")
-            return(currentValue)
-          }
+      function(row) {
+        if (row$tagType == "simple") {
+          return(eval(parse(text=paste0("initCollection$", row$tag))))
         }
+        else if (row$tagType == "iterator") {
+          #an iterator tag was nested
+          return(initCollection$curItPos[row$tag])
+        }
+        else if (row$tagType == "array") {
+          split <- strsplit(row$tag, split="#", fixed=TRUE)[[1]]
+          if (length(split) != 2) stop("array tag missing iterator: ", row$tag)
+
+          #find where in the iterator depth this iterator lies
+          #iteratorPosition <- grep(paste("\\b", split[2], "\\b", sep=""), initCollection$iterators, perl=T)
+
+          #use named array look-up
+          iteratorPosition <- initCollection$curItPos[split[2]]
+
+          currentValue <- eval(parse(text=paste0("initCollection$", split[1], "[", iteratorPosition, "]")))
+
+          if (is.null(currentValue)) {
+            stop("When replacing tag: ", row$tag, ", could not find corresponding value.")
+          }
+
+          return(currentValue)
+        }
+      }
     ))
 
     #now we have a list of curent values for any init tags
@@ -646,7 +712,7 @@ evaluateConditional <- function(tag, initCollection) {
   #iteratorPosition <- grep(paste("\\b", conditional[1], "\\b", sep=""), initCollection$iterators, perl=T)
 
   #return a boolean value indicating whether the conditional is true
-  return(eval(parse(text=paste("initCollection$curItPos[conditional[1]]", conditional[2], conditional[3], sep=""))))
+  return(eval(parse(text=paste0("initCollection$curItPos[conditional[1]]", conditional[2], conditional[3]))))
 
 }
 
@@ -660,8 +726,7 @@ clipString <- function(string, start, end) {
   if(end < nchar(string)) postString <- substr(string, end+1, nchar(string))
   else postString <- ""
 
-  return(paste(preString, postString, sep=""))
-
+  return(paste0(preString, postString))
 }
 
 processConditionalTags <- function(templateTags, initCollection) {
@@ -679,15 +744,16 @@ processConditionalTags <- function(templateTags, initCollection) {
   bodyTagsToDrop <- c()
   bodyLinesToDrop <- c()
   for (i in allOpen) {
-		#should be able to decide whether to skip an iteration if the affected lines are already in bodyLinesToDrop
+    #should be able to decide whether to skip an iteration if the affected lines are already in bodyLinesToDrop
     thisTag <- templateTags$bodyTags$tag[i]
 
     #evaluate truth of conditional
     conditionalTrue <- evaluateConditional(thisTag, initCollection)
 
     #only look for closing tags after the opening and accept the first exact match
-    close <- conditionalTagIndices[templateTags$bodyTags$tag[conditionalTagIndices] == paste("/", thisTag, sep="") &
-            templateTags$bodyTags$element[conditionalTagIndices] >= templateTags$bodyTags$element[i]][1]
+    close <- conditionalTagIndices[
+      templateTags$bodyTags$tag[conditionalTagIndices] == paste0("/", thisTag) &
+      templateTags$bodyTags$element[conditionalTagIndices] >= templateTags$bodyTags$element[i]][1]
 
     sameLine <- FALSE
     #in case of same line match, check to make sure close follows opening on that line
@@ -695,42 +761,46 @@ processConditionalTags <- function(templateTags, initCollection) {
     if (templateTags$bodyTags$element[close]==templateTags$bodyTags$element[i]) {
       sameLine <- TRUE
 
-      close <- conditionalTagIndices[openClose == "close" &
-              templateTags$bodyTags$tag[conditionalTagIndices] == paste("/", thisTag, sep="") &
-              templateTags$bodyTags$element[conditionalTagIndices] == templateTags$bodyTags$element[i] &
-              templateTags$bodyTags$start[conditionalTagIndices] > templateTags$bodyTags$end[i]][1]
+      close <- conditionalTagIndices[
+        openClose == "close" &
+        templateTags$bodyTags$tag[conditionalTagIndices] == paste0("/", thisTag) &
+        templateTags$bodyTags$element[conditionalTagIndices] == templateTags$bodyTags$element[i] &
+        templateTags$bodyTags$start[conditionalTagIndices] > templateTags$bodyTags$end[i]][1]
 
       if (!close > 0) stop("Could not find closing tag for conditional:", thisTag)
     }
 
-		#skip this iteration if the opening and closing tags in question are already in the drop pile
-		#these lines (and the lines between, if necessary) will already be dropped, so don't process
-		if (templateTags$bodyTags$element[i] %in% bodyLinesToDrop && templateTags$bodyTags$element[close] %in% bodyLinesToDrop) next
+    #skip this iteration if the opening and closing tags in question are already in the drop pile
+    #these lines (and the lines between, if necessary) will already be dropped, so don't process
+    if (templateTags$bodyTags$element[i] %in% bodyLinesToDrop &&
+        templateTags$bodyTags$element[close] %in% bodyLinesToDrop) next
 
     #first check for tags to drop from the bodyTags collection (don't want these parsed later)
     if (conditionalTrue) {
       #only remove starting and ending tags
       bodyTagsToDrop <- c(bodyTagsToDrop, i, close)
-    }
-    else {
+    } else {
       #if conditional false, then remove all tags between conditional tags
       #first, dump all lines in the bodyTags section that fall between elements
       bodyTagsToDrop <- c(bodyTagsToDrop, i:close)
 
-			#conditional is not true
-			#so dump the tags and all space between
-			#really, the only difference here from the calculation below is that
-			#bodyLinesToDrop should encompass the space between opening and closing
-			#and the clips below should dump the rest of the line when multiple tags on same line
-			#no need to rewrite code for clipping out tags
-			#don't clip the tag lines themselves because this is handled below (whole line goes if nchar <= 0)
-			#print(bodyLinesToDrop)
-			#browser()
+      #conditional is not true
+      #so dump the tags and all space between
+      #really, the only difference here from the calculation below is that
+      #bodyLinesToDrop should encompass the space between opening and closing
+      #and the clips below should dump the rest of the line when multiple tags on same line
+      #no need to rewrite code for clipping out tags
+      #don't clip the tag lines themselves because this is handled below (whole line goes if nchar <= 0)
+      #print(bodyLinesToDrop)
+      #browser()
 
-			#only drop lines between matching open/close tags if not on the same line
-			#otherwise, the clipping code below handles everything correctly
-			#if on the same line, then element + 1:close - 1 will lead to something like 58:56, which is bad
-			if (!sameLine) bodyLinesToDrop <- c(bodyLinesToDrop, (templateTags$bodyTags$element[i]+1):(templateTags$bodyTags$element[close]-1))
+      #only drop lines between matching open/close tags if not on the same line
+      #otherwise, the clipping code below handles everything correctly
+      #if on the same line, then element + 1:close - 1 will lead to something like 58:56, which is bad
+      if (!sameLine) {
+        bodyLinesToDrop <- c(bodyLinesToDrop,
+         (templateTags$bodyTags$element[i]+1):(templateTags$bodyTags$element[close]-1))
+      }
     }
 
     #then dump lines from the syntax section itself
@@ -741,101 +811,113 @@ processConditionalTags <- function(templateTags, initCollection) {
     #when the conditional is true, just remove the tags and leave the syntax
     #dump the opening tag on the line
 
-		if (conditionalTrue) endPos <- templateTags$bodyTags$end[i] #if the conditional is true, just use the last pos of the opening tag for the clip
-		else if (!conditionalTrue && sameLine == FALSE) endPos <- nchar(templateTags$bodyText[templateTags$bodyTags$element[i]]) #want to clip the rest of the line
-		else if (!conditionalTrue && sameLine == TRUE) endPos <- templateTags$bodyTags$start[close] - 1 #just clip anything between open tag and first element of close tag (close tag itself handled by code below)
+    #if the conditional is true, just use the last pos of the opening tag for the clip
+    if (conditionalTrue) endPos <- templateTags$bodyTags$end[i]
+    #want to clip the rest of the line
+    else if (!conditionalTrue && sameLine == FALSE) endPos <- nchar(templateTags$bodyText[templateTags$bodyTags$element[i]])
+    #just clip anything between open tag and first element of close tag (close tag itself handled by code below)
+    else if (!conditionalTrue && sameLine == TRUE) endPos <- templateTags$bodyTags$start[close] - 1
 
-    templateTags$bodyText[templateTags$bodyTags$element[i]] <- clipString(templateTags$bodyText[templateTags$bodyTags$element[i]], templateTags$bodyTags$start[i], endPos)
-    if (nchar(trimSpace(templateTags$bodyText[templateTags$bodyTags$element[i]])) <= 0) bodyLinesToDrop <- c(bodyLinesToDrop, templateTags$bodyTags$element[i]) #no characters remain, so dump line
-    else {
+    templateTags$bodyText[templateTags$bodyTags$element[i]] <- clipString(
+      templateTags$bodyText[templateTags$bodyTags$element[i]],
+      templateTags$bodyTags$start[i], endPos)
+
+    if (nchar(trimSpace(templateTags$bodyText[templateTags$bodyTags$element[i]])) <= 0) {
+      #no characters remain, so dump line
+      bodyLinesToDrop <- c(bodyLinesToDrop, templateTags$bodyTags$element[i])
+    } else {
       #if there is other text on this line, it may contain tags that need to be adjusted given the clip
-
-      subsequentTags <- which(templateTags$bodyTags$element == templateTags$bodyTags$element[i] & templateTags$bodyTags$start > endPos)
+      subsequentTags <- which(
+        templateTags$bodyTags$element == templateTags$bodyTags$element[i] &
+        templateTags$bodyTags$start > endPos)
 
       if (length(subsequentTags > 0)) {
         #calculate length of opening tag
-				openLength <- endPos - templateTags$bodyTags$start[i] + 1
+	openLength <- endPos - templateTags$bodyTags$start[i] + 1
         templateTags$bodyTags[subsequentTags,"start"] <- templateTags$bodyTags[subsequentTags,"start"] - openLength
         templateTags$bodyTags[subsequentTags,"end"] <- templateTags$bodyTags[subsequentTags,"end"] - openLength
-				#print("openlength")
-				#browser()
+	#print("openlength")
+	#browser()
       }
     }
 
     #okay, we've handled issues related to the opening tag, now handle closing tag
-		#for the closing tag, just need to clip the tag itself (spacing handled above)
-		templateTags$bodyText[templateTags$bodyTags$element[close]] <- clipString(
-				templateTags$bodyText[templateTags$bodyTags$element[close]], templateTags$bodyTags$start[close],
-				templateTags$bodyTags$end[close]
-		)
+    #for the closing tag, just need to clip the tag itself (spacing handled above)
+    templateTags$bodyText[templateTags$bodyTags$element[close]] <- clipString(
+      templateTags$bodyText[templateTags$bodyTags$element[close]],
+      templateTags$bodyTags$start[close],
+      templateTags$bodyTags$end[close])
 
-    if (nchar(trimSpace(templateTags$bodyText[templateTags$bodyTags$element[close]])) <= 0) bodyLinesToDrop <- c(bodyLinesToDrop, templateTags$bodyTags$element[close]) #no characters remain, so dump line
-    else {
+    if (nchar(trimSpace(templateTags$bodyText[templateTags$bodyTags$element[close]])) <= 0) {
+      #no characters remain, so dump line
+      bodyLinesToDrop <- c(bodyLinesToDrop, templateTags$bodyTags$element[close])
+    } else {
       #only look for additional tags if nchar > 0
       #redundant code with above... must be a way to consolidate
       #if there is other text on then end line, it may contain tags that need to be adjusted given the clip
-      subsequentTags <- which(templateTags$bodyTags$element == templateTags$bodyTags$element[close] & templateTags$bodyTags$start > templateTags$bodyTags$end[close])
+      subsequentTags <- which(
+        templateTags$bodyTags$element == templateTags$bodyTags$element[close] &
+        templateTags$bodyTags$start > templateTags$bodyTags$end[close])
 
       if (length(subsequentTags > 0)) {
         closeLength <- templateTags$bodyTags$end[close] - templateTags$bodyTags$start[close] + 1
         templateTags$bodyTags[subsequentTags,"start"] <- templateTags$bodyTags[subsequentTags,"start"] - closeLength
         templateTags$bodyTags[subsequentTags,"end"] <- templateTags$bodyTags[subsequentTags,"end"] - closeLength
-				#print("closelength")
-				#browser()
+	#print("closelength")
+	#browser()
       }
     }
-	}
+  }
 
 
-	#print(bodyLinesToDrop)
-	#print(bodyTagsToDrop)
+  #print(bodyLinesToDrop)
+  #print(bodyTagsToDrop)
 
-	#drop all bad body lines
+  #drop all bad body lines
 
-	#only keep unique bodyTagsToDrop (and sort for clarity in debugging)
-	#hard to imagine that bodyTagsToDrop could be NULL at this point (given the return when no conditional tags above)
-	#but if it were NULL, the bodyTags collection would be dumped by the NULL*-1 evaluation
+  #only keep unique bodyTagsToDrop (and sort for clarity in debugging)
+  #hard to imagine that bodyTagsToDrop could be NULL at this point (given the return when no conditional tags above)
+  #but if it were NULL, the bodyTags collection would be dumped by the NULL*-1 evaluation
 
-	if (!is.null(bodyTagsToDrop)) {
-		bodyTagsToDrop <- sort(unique(bodyTagsToDrop))
-		templateTags$bodyTags <- templateTags$bodyTags[bodyTagsToDrop*-1,]
-	}
+  if (!is.null(bodyTagsToDrop)) {
+    bodyTagsToDrop <- sort(unique(bodyTagsToDrop))
+    templateTags$bodyTags <- templateTags$bodyTags[bodyTagsToDrop*-1, ]
+  }
 
-	#need to check whether bodyLinesToDrop is NULL. If it is, then we must not attempt the subset (it will delete the whole character vector)
-	if (!is.null(bodyLinesToDrop)) {
-		#only retain unique bodyLinesToDrop (in theory handled by the "next" code above, but good to be safe)
-		bodyLinesToDrop <- sort(unique(bodyLinesToDrop))
-		templateTags$bodyText <- templateTags$bodyText[bodyLinesToDrop*-1]
+  #need to check whether bodyLinesToDrop is NULL. If it is, then we must not attempt the subset
+  #(it will delete the whole character vector)
+  if (!is.null(bodyLinesToDrop)) {
+    #only retain unique bodyLinesToDrop (in theory handled by the "next" code above, but good to be safe)
+    bodyLinesToDrop <- sort(unique(bodyLinesToDrop))
+    templateTags$bodyText <- templateTags$bodyText[bodyLinesToDrop*-1]
 
-		#need to move up the line markers in the bodyTags collection based on the lines dropped
-		templateTags$bodyTags <- ddply(templateTags$bodyTags, "element", function(subDF) {
-					numMoveUp <- length(which(bodyLinesToDrop < subDF$element[1]))
-					subDF$element <- subDF$element - numMoveUp
-					return(subDF)
-				})
-	}
-
-	return(templateTags)
+    #need to move up the line markers in the bodyTags collection based on the lines dropped
+    templateTags$bodyTags <- ddply(templateTags$bodyTags, "element", function(subDF) {
+      numMoveUp <- length(which(bodyLinesToDrop < subDF$element[1]))
+      subDF$element <- subDF$element - numMoveUp
+      return(subDF)
+    })
+  }
+  return(templateTags)
 }
 
 
 processInit <- function(initsection) {
-	require(gsubfn)
+  require(gsubfn)
 
   #combine multi-line statements by searching for semi-colon
   assignments <- grep("^\\s*.+\\s*=", initsection, perl=TRUE)
 
-	#check for valid variable names
-	valid <- grep("^\\s*[A-Za-z\\.]+[\\w\\.#]*\\s*=", initsection[assignments], perl=TRUE)
+  #check for valid variable names
+  valid <- grep("^\\s*[A-Za-z\\.]+[\\w\\.#]*\\s*=", initsection[assignments], perl=TRUE)
 
-	if (length(valid) < length(assignments)) {
-		badvars <- initsection[assignments[which(!1:length(assignments) %in% valid)]]
-		stop(paste(c("Invalid variable definitions in init section.",
-				"Variables must begin with a letter or a period.",
-				"Variables may contain only the following characters: letters, numbers, underscores, periods, and a single pound sign for list variables.",
-				"Problematic variable(s):",
-				badvars), collapse="\n  "))
-	}
+  if (length(valid) < length(assignments)) {
+    badvars <- initsection[assignments[which(!1:length(assignments) %in% valid)]]
+    stop(paste(c("Invalid variable definitions in init section.",
+      "Variables must begin with a letter or a period.",
+      "Variables may contain only the following characters: letters, numbers, underscores, periods, and a single pound sign for list variables.",
+      "Problematic variable(s):", badvars), collapse="\n  "))
+  }
 
   #preallocate vector of strings to process
   argstoprocess <- vector("character", length(assignments))
@@ -846,35 +928,40 @@ processInit <- function(initsection) {
 
     #if line does not terminate in semicolon, then read subsequent lines until semicolon found
     #start file position at n+1 line
-    filepos = assignments[i]+1
+    filepos = assignments[i] + 1
     while (length(grep(";\\s*$", argstoprocess[i], perl=TRUE)) != 1) {
       #cat("multi-line: ", unlist(argstoprocess[i]), fill=T)
       argstoprocess[i] = paste(argstoprocess[i], initsection[filepos])
-      filepos = filepos+1
+      filepos = filepos + 1
     }
   }
 
-	#will return a list (one element per argstoprocess) with a three-element vector (name, iterator, value)
-	#note that the regexp implicitly dumps the semicolon and any trailing spaces
-	arglist <- strapply(argstoprocess, "^\\s*(\\w+[\\w\\.]*)(#[\\w\\.]+)?\\s*=\\s*(.+);\\s*$", function(name, iterator, value) {
-			return(c(name, iterator, value))
-		}, perl=TRUE)
+  #will return a list (one element per argstoprocess) with a three-element vector (name, iterator, value)
+  #note that the regexp implicitly dumps the semicolon and any trailing spaces
+  arglist <- strapply(argstoprocess, "^\\s*(\\w+[\\w\\.]*)(#[\\w\\.]+)?\\s*=\\s*(.+);\\s*$",
+    function(name, iterator, value) {
+      return(c(name, iterator, value))
+    }, perl=TRUE)
 
-	#copy the first element (name) of each vector into the list names
-	names(arglist) <- make.names(sapply(arglist, '[', 1))
+   #copy the first element (name) of each vector into the list names
+   names(arglist) <- make.names(sapply(arglist, '[', 1))
 
-	#1. parse values into vectors according to spaces and quotes
-	#2. add iterator attribute to be processed after iterators are setup below
-	#3. implicitly drop name by not including element[1]
-	arglist <- lapply(arglist, function(element) {
-				output <- friendlyGregexpr("(\"[^\"]*\"|[^\\s]+)", element[3])$tag
-				output <- gsub("\"", "", output)
+  #1. parse values into vectors according to spaces and quotes
+  #2. add iterator attribute to be processed after iterators are setup below
+  #3. implicitly drop name by not including element[1]
+  arglist <- lapply(arglist, function(element) {
+    output <- friendlyGregexpr("(\"[^\"]*\"|[^\\s]+)", element[3])$tag
+    output <- gsub("\"", "", output)
 
-				#the regexp above matches the # itself. need to trim off in cases where iterator defined
-				if (nchar(element[2]) > 0) element[2] <- substr(element[2], 2, nchar(element[2]))
-				attr(output, "iterator") <- element[2]
-				return(output)
-			})
+    #the regexp above matches the # itself.
+    #need to trim off in cases where iterator defined
+    if (nchar(element[2]) > 0) {
+      element[2] <- substr(element[2], 2, nchar(element[2]))
+    }
+    attr(output, "iterator") <- element[2]
+
+    return(output)
+  })
 
 
   if (is.null(arglist$iterators)) {
@@ -886,71 +973,87 @@ processInit <- function(initsection) {
 
   #process sequence text for each iterator
   for (thisIt in arglist$iterators) {
-		if (is.null(arglist[[thisIt]])) stop("Variable specified in iterators list, but not defined: ", thisIt)
+    if (is.null(arglist[[thisIt]])) {
+      stop("Variable specified in iterators list, but not defined: ", thisIt)
+    }
 
-		#expand colon notation as needed
-		#use do.call to combine elements of list returned by lapply
-		#if there are many elements (e.g., 1 3 5), then lapply returns an element for each
-		#one, but we just want a combined array. In the case of colon expansion, want to c that together
-		#with any other elements... Maybe in the future when we support non-contiguous iterators.
+    #expand colon notation as needed
+    #use do.call to combine elements of list returned by lapply
+    #if there are many elements (e.g., 1 3 5), then lapply returns an element for each
+    #one, but we just want a combined array. In the case of colon expansion, want to c that together
+    #with any other elements... Maybe in the future when we support non-contiguous iterators.
 
-		arglist[[thisIt]] <- do.call("c", lapply(arglist[[thisIt]], function(x) {
-					if (length(grep(":", x)) > 0) {
-						return(strapply(x, "(\\d+)\\s*:\\s*(\\d+)", function(start, stop) return(start:stop))[[1]])
-					}
-					else return(as.numeric(x))
-				}))
+    arglist[[thisIt]] <- do.call("c", lapply(arglist[[thisIt]], function(x) {
+      if (length(grep(":", x)) > 0) {
+        return(strapply(x, "(\\d+)\\s*:\\s*(\\d+)", function(start, stop) return(start:stop))[[1]])
+      } else {
+        return(as.numeric(x))
+      }
+     }))
 
-		#sort as ascending and only keep unique values
-		if (length(unique(arglist[[thisIt]])) < length(arglist[[thisIt]])) stop("Problem with iterator: ", thisIt, "\n  Non-unique values specified: ", paste(arglist[[thisIt]], collapse=", "))
-		arglist[[thisIt]] <- sort(unique(arglist[[thisIt]]))
-	}
+    #sort as ascending and only keep unique values
+    if (length(unique(arglist[[thisIt]])) < length(arglist[[thisIt]])) {
+      stop("Problem with iterator: ", thisIt, "\n  Non-unique values specified: ",
+        paste(arglist[[thisIt]], collapse=", "))
+    }
 
-	#browser()
+    arglist[[thisIt]] <- sort(unique(arglist[[thisIt]]))
+  }
 
+  #browser()
 
-	#now that iterators are defined, ensure that list tags match
-	#pad vectors accordingly
+  #now that iterators are defined, ensure that list tags match
+  #pad vectors accordingly
 
-	arglist <- lapply(arglist, function(element) {
-				#if the iterator is defined, then this is a list tag
-				#need to make sure it is properly padded
-				iteratorAttr <- attr(element, "iterator")
-				if (!is.null(iteratorAttr) && nchar(iteratorAttr) > 0) {
-					iteratorValues <- arglist[[iteratorAttr]]
-					#make sure that the length of the values vector matches the length of the iterator vector
-					if (length(element) != length(iteratorValues)) stop("Variable locked to iterator: ", iteratorAttr, ", but has different length.\n  Values: ", paste(element, collapse=", "), "\n  Should be length: ", length(iteratorValues))
+  arglist <- lapply(arglist, function(element) {
+    #if the iterator is defined, then this is a list tag
+    #need to make sure it is properly padded
+    iteratorAttr <- attr(element, "iterator")
+    if (!is.null(iteratorAttr) && nchar(iteratorAttr) > 0) {
+      iteratorValues <- arglist[[iteratorAttr]]
 
-					if (length(element) < max(iteratorValues)) {
-						#pad
-						updatedElement <- c()
-						listElement <- 1
-						#build a vector of the same length as the max of the iterator
-						#only insert list values for defined indices. Otherwise pad
-						for (i in 1:max(iteratorValues)) {
-							if (i %in% iteratorValues) {
-								updatedElement[i] <- element[listElement]
-								listElement <- listElement + 1
-							}
-							else updatedElement[i] <- ""
-						}
-						element <- updatedElement
-						attr(element, "iterator") <- iteratorAttr #re-add attribute
-					}
-				}
+      #make sure that the length of the values vector
+      #matches the length of the iterator vector
+      if (length(element) != length(iteratorValues)) {
+        stop("Variable locked to iterator: ", iteratorAttr,
+          ", but has different length.\n  Values: ",
+          paste(element, collapse=", "),
+          "\n  Should be length: ", length(iteratorValues))
+      }
 
-				return(element)
-			})
+      if (length(element) < max(iteratorValues)) {
+        #pad
+        updatedElement <- c()
+        listElement <- 1
+        #build a vector of the same length as the max of the iterator
+        #only insert list values for defined indices. Otherwise pad
+        for (i in 1:max(iteratorValues)) {
+          if (i %in% iteratorValues) {
+            updatedElement[i] <- element[listElement]
+            listElement <- listElement + 1
+          } else {
+            updatedElement[i] <- ""
+          }
+        }
+        element <- updatedElement
+        attr(element, "iterator") <- iteratorAttr #re-add attribute
+      }
+    }
 
-	#browser()
+    return(element)
+  })
+
+  #browser()
 
 
   #default output directory to the current directory
   if (is.null(arglist$outputDirectory)) {
-		warning("No output directory specified. Defaulting to the current directory.")
+    warning("No output directory specified. Defaulting to the current directory.")
     arglist$outputDirectory <- getwd()
   }
-	if (is.null(arglist$filename)) stop("No definition provided for the output filename. The filename definition is required.")
+  if (is.null(arglist$filename)) {
+    stop("No definition provided for the output filename. The filename definition is required.")
+  }
 
   return(arglist)
 }
@@ -962,46 +1065,51 @@ prepareMplusData_Mat <- function(covMatrix, meansMatrix, nobs) {
 }
 
 prepareMplusData <- function(df, filename, keepCols, dropCols) {
-	if (!inherits(df, "data.frame")) stop ("First argument is not a data.frame.")
+  stopifnot(inherits(df, "data.frame"))
 
-	#only allow keep OR drop.
-	if(!missing(keepCols) && !missing(dropCols)) stop("keepCols and dropCols passed to prepareMplusData. You must choose one or the other, but not both.")
+  #only allow keep OR drop.
+  if(!missing(keepCols) && !missing(dropCols)) {
+    stop("keepCols and dropCols passed to prepareMplusData. You must choose one or the other, but not both.")
+  }
 
-	#keep only columns specified by keepCols
-	if (!missing(keepCols) && length(keepCols) > 0) {
-		df <- df[, keepCols]
-	}
+  #keep only columns specified by keepCols
+  if (!missing(keepCols) && length(keepCols) > 0) {
+    df <- df[, keepCols]
+  }
 
-	#drop columns specified by dropCols
-	if (!missing(dropCols) && length(dropCols) > 0) {
-		#Process vector of columns to drop
-		for (column in dropCols) {
-			df[[column]] <- NULL
-		}
-
-	}
+  #drop columns specified by dropCols
+  if (!missing(dropCols) && length(dropCols) > 0) {
+    df <- subset(df, select = -which(colnames(df) %in% dropCols))
+  }
 
   #convert factors to numbers
   df <- as.data.frame(lapply(df, function(col) {
-            if (is.factor(col)) return(sapply(col, as.numeric)) #can't use ifelse because is.factor returns only one element, and ifelse enforces identical length
-            else if (is.character(col)) {
-              warning("Character data requested for output using prepareMplusData.\n  Mplus does not support character data.")
-              return(col)
-            }
-            else return(col)
-          }))
+    #can't use ifelse because is.factor returns only one element,
+    #and ifelse enforces identical length
+    if (is.factor(col)) {
+      col <- as.numeric(col)
+    }
+    if (is.character(col)) {
+      warning("Character data requested for output using prepareMplusData.\n  Mplus does not support character data.")
+    }
+    return(col)
+  }))
 
-	write.table(df, filename, sep="\t", col.names = FALSE, row.names = FALSE, na=".")
+  write.table(df, filename, sep="\t", col.names = FALSE, row.names = FALSE, na=".")
 
-	#variable created for readability
-	variableNames <- paste(gsub("\\.", "_", names(df)), collapse=" ")
+  #variable created for readability
+  variableNames <- paste(gsub("\\.", "_", names(df)), collapse=" ")
 
-	#short names?
-	#shortNames <- paste(substr(names(df), 1, 8), collapse=" ")
+  #short names?
+  #shortNames <- paste(substr(names(df), 1, 8), collapse=" ")
 
-	cat(c("TITLE: Your title goes here\n",
-					paste("DATA: FILE = \"", filename, "\";\n", sep=""),
-					paste(strwrap(paste("VARIABLE: NAMES = ", variableNames), width=85, exdent=5), collapse="\n"), ";\n\n",
-					"MISSING=.;\n"
-	), sep="")
+  syntax <- c(
+    "TITLE: Your title goes here\n",
+    paste0("DATA: FILE = \"", filename, "\";\n"),
+    paste(strwrap(paste("VARIABLE: NAMES = ", variableNames), width=85, exdent=5), collapse="\n"),
+    ";\n\n", "MISSING=.;\n")
+
+  cat(syntax, sep="")
+  # return invisible so it can be saved/reused if desired
+  return(invisible(syntax))
 }
