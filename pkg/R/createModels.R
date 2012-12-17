@@ -1087,6 +1087,7 @@ prepareMplusData <- function(df, filename, keepCols, dropCols) {
     #can't use ifelse because is.factor returns only one element,
     #and ifelse enforces identical length
     if (is.factor(col)) {
+      cat("Factor levels: ", paste(levels(col), collapse=", "), "converted to numbers: ", paste(seq_along(levels(col)), collapse=", "), "\n\n") #hope this logic is right -- looks like the numeric storage of the levels always corresponds to the order of the levels
       col <- as.numeric(col)
     }
     if (is.character(col)) {
