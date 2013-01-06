@@ -377,17 +377,26 @@ updateCurrentValues <- function(templateTags, initCollection) {
   return(templateTags)
 }
 
-
-recurseReplace <- function(templateTags, initCollection, curiterator=1) {
+#' Recursive replace
+#'
+#' To do: fill in some details
+#'
+#' @param templateTags The template tags
+#' @param initCollection The list of all arguments parsed from the init section
+#' @param curiterator An integer that tracks of the depth of recursion through the iterators. Defaults to 1.
+#' @return Does not look like it returns anything
+#' @keywords internal
+recurseReplace <- function(templateTags, initCollection, curiterator=1L) {
   #bodySection is the character vector representing each line of the body section
   #bodyTags is a data.frame documenting the location and type of all tags in bodySection
-  #initCollection is the list of all arguments parsed from the init section
   #initTags is a data.frame documenting the location and type of all tags in initCollection
-  #curiterator is an integer that tracks of the depth of recursion through the iterators
 
   if (!is.list(initCollection)) {
     stop("Argument list passed to recurseReplace is not a list")
   }
+
+  # check that curiterator is indeed a whole number
+  stopifnot(curiterator %% 1 == 0)
 
   thisIterator <- initCollection$iterators[curiterator]
 
@@ -484,6 +493,14 @@ recurseReplace <- function(templateTags, initCollection, curiterator=1) {
   }
 }
 
+#' Replace Init Tags
+#'
+#' To do: fill in some details
+#'
+#' @param initTags Init tags
+#' @param initCollection The list of all arguments parsed from the init section
+#' @return Returns updated initCollection
+#' @keywords internal
 replaceInitTags <- function(initTags, initCollection) {
   targetRows <- which(initTags$tagType %in% c("simple", "iterator", "array"))
   targetTags <- initTags[targetRows, ]
@@ -538,6 +555,15 @@ replaceInitTags <- function(initTags, initCollection) {
   return(initCollection)
 }
 
+#' Replace Body Tags
+#'
+#' To do: fill in some details
+#'
+#' @param bodySection
+#' @param bodyTags
+#' @param initCollection The list of all arguments parsed from the init section
+#' @return Returns updated bodySection
+#' @keywords internal
 replaceBodyTags <- function(bodySection, bodyTags, initCollection) {
   if (length(bodySection) <= 0) stop("Empty body section")
 
@@ -606,8 +632,17 @@ replaceBodyTags <- function(bodySection, bodyTags, initCollection) {
   return(bodySection)
 }
 
-#redundant with finalize code... re-use
+#' Lookup values
+#'
+#' To do: fill in some details
+#'
+#' @param tag
+#' @param tagType
+#' @param initCollection The list of all arguments parsed from the init section
+#' @return Current value
+#' @keywords internal
 lookupValue <- function(tag, tagType, initCollection) {
+#redundant with finalize code... re-use
   if (missing(tag)) stop("No tag provided")
   if (missing(tagType)) stop("No tag type provided")
 
@@ -635,20 +670,25 @@ lookupValue <- function(tag, tagType, initCollection) {
   }
 }
 
+#' Finalize Init Collection
+#'
+#' this function should handle initTags that still contain tags
+#' once the initCollection is finalized, then process the deferred body tags
+#' the notion is that the substitutions will be handled in an inefficient manner -- using lots
+#' of regular expression parsing, not using the matched tags data.frame
+#'
+#' we only need to handle simple and array tags
+#' iterators should always be integers
+#' foreach and conditional are not relevant
+#'
+#' iterate over init tags until no tags are left
+#' here, the init collection should already have had most of its tags substituted by
+#' replaceInitTags above.
+#'
+#' @param initCollection The list of all arguments parsed from the init section
+#' @return Finalized initCollection
+#' @keywords internal
 finalizeInitCollection <- function(initCollection) {
-  #this function should handle initTags that still contain tags
-  #once the initCollection is finalized, then process the deferred body tags
-  #the notion is that the substitutions will be handled in an inefficient manner -- using lots
-  #of regular expression parsing, not using the matched tags data.frame
-
-  #we only need to handle simple and array tags
-  #iterators should always be integers
-  #foreach and conditional are not relevant
-
-  #iterate over init tags until no tags are left
-  #here, the init collection should already have had most of its tags substituted by
-  #replaceInitTags above.
-
   tagsRemain <- TRUE
   numIterations <- 1
   while(tagsRemain) {
@@ -707,7 +747,14 @@ finalizeInitCollection <- function(initCollection) {
   return(initCollection)
 }
 
-#note that at thie point the comparator must be a number (not another variable)
+#' Evaluate Conditional
+#'
+#' Note that at thie point the comparator must be a number (not another variable).
+#'
+#' @param tag A tag
+#' @param initCollection The list of all arguments parsed from the init section
+#' @return A boolean value indicating whether the conditional is true
+#' @keywords internal
 evaluateConditional <- function(tag, initCollection) {
   #evaluate whether tag is true
   #first divide up into name, operator, and value
@@ -726,9 +773,17 @@ evaluateConditional <- function(tag, initCollection) {
 
   #return a boolean value indicating whether the conditional is true
   return(eval(parse(text=paste0("initCollection$curItPos[conditional[1]]", conditional[2], conditional[3]))))
-
 }
 
+#' Clip String
+#'
+#' To do: add any details.
+#'
+#' @param string A string to be clipped
+#' @param start The character position to start at
+#' @param end  The character position to end at
+#' @return A string from start to end
+#' @keywords internal
 clipString <- function(string, start, end) {
   #if the string is shorter than the length of the clip, then nothing remains
   if (nchar(string) <= end-start+1) return("")
@@ -742,6 +797,14 @@ clipString <- function(string, start, end) {
   return(paste0(preString, postString))
 }
 
+#' Process Conditional Tags
+#'
+#' To do: add details.
+#'
+#' @param templateTags A template tag
+#' @param initCollection The list of all arguments parsed from the init section
+#' @return Processed templateTags
+#' @keywords internal
 processConditionalTags <- function(templateTags, initCollection) {
   require(gsubfn)
   #find all conditional tags in the body section and remove them from the templateTags and bodyText pieces...
@@ -915,8 +978,17 @@ processConditionalTags <- function(templateTags, initCollection) {
 }
 
 
+#' Process the Init Section
+#'
+#' To do: add details.
+#'
+#' @param initsection The list of all arguments parsed from the init section
+#' @return arglist
+#' @importFrom gsubfn strapply
+#' @keywords internal
 processInit <- function(initsection) {
-  require(gsubfn)
+  # moved to an import
+  # require(gsubfn)
 
   #combine multi-line statements by searching for semi-colon
   assignments <- grep("^\\s*.+\\s*=", initsection, perl=TRUE)
@@ -1072,10 +1144,19 @@ processInit <- function(initsection) {
 }
 
 
-#support writing of covariance or means + covariance matrix (future)
+#' Prepare Mplus Data Matrix
+#'
+#' support writing of covariance or means + covariance matrix (future)
+#'
+#' @param covMatrix The covariance matrix
+#' @param meansMatrix The means matrix
+#' @param nobs Number of observations for the data
+#' @return A dataset
+#' @keywords internal
 prepareMplusData_Mat <- function(covMatrix, meansMatrix, nobs) {
 
 }
+
 
 prepareMplusData <- function(df, filename, keepCols, dropCols) {
   stopifnot(inherits(df, "data.frame"))
