@@ -29,7 +29,7 @@
 #' @param df An object inheriting from class \code{data.frame}
 #'
 #' @return A list where each element is a one row data frame
-#' @keywords utils
+#' @keywords internal
 #' @examples
 #' # small example using built in data
 #' MplusAutomation:::splitDFByRow(mtcars)
@@ -47,7 +47,7 @@ splitDFByRow <- function(df) {
 #' @param tagVector A vector of tags to be classified
 #' @param iteratorsVector a vector of the iterators to correctly classify tags
 #' @return A character vector the same length as the vectors to be tagged
-#' @keywords utils
+#' @keywords internal
 classifyTags <- function(tagVector, iteratorsVector) {
   #accepts a vector of tags to be classified
   #also needs a vector of the iterators to correctly classify tags
@@ -93,6 +93,7 @@ classifyTags <- function(tagVector, iteratorsVector) {
 #'
 #' @param initCollection A list?
 #' @return The initMatches
+#' @keywords internal
 getInitTags <- function(initCollection) {
   initMatches <- c()
   for (i in 1:length(initCollection)) {
@@ -151,6 +152,7 @@ getInitTags <- function(initCollection) {
 #'   \item{bodyTags}{bodyMatches}
 #'   \item{bodyText}{bodySection}
 #' }
+#' @keywords internal
 parseTags <- function(bodySection, initCollection) {
   #first handle init tags
   initMatches <- getInitTags(initCollection)
@@ -239,6 +241,7 @@ createModels <- function(templatefile) {
 #' @param templateTags The template tags
 #' @param initCollection The initial collection
 #' @return A tag.
+#' @keywords internal
 lookupSimpleTags <- function(templateTags, initCollection) {
 #  #locate simple tags in body
 #  simpleBodyPositions <- which(templateTags$bodyTags$tagType=="simple")
@@ -269,15 +272,21 @@ lookupSimpleTags <- function(templateTags, initCollection) {
   return(templateTags)
 }
 
+#' Updates current values
+#'
+#' Body tags currentValues are substituted at the bottom-most level
+#' after init collection is finalized (recursively process any nested tags)
+#'
+#' @param templateTags The template tags
+#' @param initCollection Initial collection
+#' @return Updated current value or the original if no match.
+#' @keywords internal
+updateCurrentValues <- function(templateTags, initCollection) {
 #Better idea: only updateCurrentValues for init tags collection
-#Body tags currentValues are substituted at the bottom-most level after
-#init collection is finalized (recursively process any nested tags)
-
 #And only update init collection for the respective iterator
-
 #Only need to update values for a given iterator....
 #The issue is that values for a given iterator shouldn't change when another iterator is active
-updateCurrentValues <- function(templateTags, initCollection) {
+
   #need to replace array and iterator tags for this iterator
 
   #locate iterator tags in init
@@ -326,7 +335,9 @@ updateCurrentValues <- function(templateTags, initCollection) {
             paste0("initCollection$", split[1], "[",
             initCollection$curItPos[initCollection$curIteratorDepth], "]")))
 
-          if (is.null(currentValue)) stop("When replacing tag: ", row$tag, ", could not find corresponding value.")
+          if (is.null(currentValue)) {
+            stop("When replacing tag: ", row$tag, ", could not find corresponding value.")
+          }
           return(currentValue)
         } else {
           # return unchanged current value if not this iterator
@@ -570,7 +581,9 @@ replaceBodyTags <- function(bodySection, bodyTags, initCollection) {
     }
 
     #lookup value as needed
-    if (is.na(row$currentValue)) row$currentValue <- lookupValue(row$tag, row$tagType, initCollection)
+    if (is.na(row$currentValue)) {
+      row$currentValue <- lookupValue(row$tag, row$tagType, initCollection)
+    }
     #row$currentValue <- lookupValue(row$tag, row$tagType, initCollection)
 
     bodySection[row$element] <- paste0(preTag, row$currentValue, postTag)
