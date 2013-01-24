@@ -1158,7 +1158,102 @@ prepareMplusData_Mat <- function(covMatrix, meansMatrix, nobs) {
 }
 
 
-prepareMplusData <- function(df, filename, keepCols, dropCols) {
+#' Create tab-delimited file and Mplus input syntax from R data.frame
+#'
+#' The \code{prepareMplusData} function converts an R data.frame object
+#' into a tab-delimited file (without header) to be used in an Mplus
+#' input file. The corresponding Mplus syntax, including the
+#' data file definition and variable names,
+#' is printed to the console or optionally to an input file.
+#'
+#' @param df The R data.frame to be prepared for Mplus
+#' @param filename The path and filename for the tab-delimited data file
+#'   for use with Mplus. Example: "C:/Mplusdata/data1.dat"
+#' @param keepCols A character vector specifying the variable names
+#'   within \code{df} to be output to \code{filename} or a numeric
+#'   vector of the column indices to be output or a logical vector
+#'   corresponding to the same.
+#' @param dropCols A character vector specifying the variable names
+#'   within \code{df} to be omitted from the data output to \code{filename}
+#'   or a numeric vector of the column indices not to be output
+#'   or a logical vector corresponding to the same.
+#' @param inpfile Logical value whether the Mplus syntax should be written
+#'   to the console or to an input file. Defaults to \code{FALSE}. If
+#'   \code{TRUE}, the file name will be the same as \code{filename} with
+#'   the extension changed to .inp.  Alternately, this can be a character
+#'   string giving the file name to write the Mplus syntax to.
+#' @param interactive Logical value indicating whether file names
+#'   should be selected interactively. If \code{filename} is
+#'   missing and \code{interative=TRUE}, then a dialogue box
+#'   will pop up to select a file or a console prompt if in a
+#'   non interactive context. Defaults to \code{TRUE}.
+#' @param overwrite Logical value indicating whether
+#'   data and input (if present) files should be overwritten.
+#'   Defaults to \code{TRUE} to be consistent with prior behavior.
+#'   If \code{FALSE} and the file to write the data to already exists,
+#'   it will throw an error.
+#' @return Invisibly returns a character vector of the Mplus input
+#'   syntax. Primarily called for its side effect of creating Mplus
+#'   data files and optionally input files.
+#' @keywords interface
+#' @examples
+#' \dontrun{
+#' library(foreign)
+#'
+#' study5 <- read.spss("reanalysis-study-5-mt-fall-08.sav", to.data.frame=TRUE)
+#' ASData5 <- subset(study5, select=c("ppnum", paste("as", 1:33, sep="")))
+#'
+#' prepareMplusData(ASData5, "study5.dat")
+#'
+#'
+#' # basic example
+#' test01 <- prepareMplusData(mtcars, "test01.dat")
+#'
+#' # see that syntax was stored
+#' test01
+#'
+#' # tests for keeping and dropping variables
+#' prepareMplusData(mtcars, "test02.dat", keepCols = c("mpg", "hp"))
+#' prepareMplusData(mtcars, "test03.dat", keepCols = c(1, 2))
+#' prepareMplusData(mtcars, "test04.dat",
+#'   keepCols = c(TRUE, FALSE, FALSE, TRUE, FALSE,
+#'   FALSE, FALSE, FALSE, FALSE, FALSE, FALSE))
+#'
+#' prepareMplusData(mtcars, "test05.dat", dropCols = c("mpg", "hp"))
+#' prepareMplusData(mtcars, "test06.dat", dropCols = c(1, 2))
+#' prepareMplusData(mtcars, "test07.dat",
+#'   dropCols = c(TRUE, FALSE, FALSE, TRUE, FALSE,
+#'   FALSE, FALSE, FALSE, FALSE, FALSE, FALSE))
+#'
+#'
+#' # interactive (test08.dat)
+#' prepareMplusData(mtcars, interactive=TRUE)
+#'
+#' # write syntax to input file, not stdout
+#' prepareMplusData(mtcars, "test09.dat", inpfile=TRUE)
+#'
+#' # write syntax to alternate input file, not stdout
+#' prepareMplusData(mtcars, "test10.dat", inpfile="test10alt.inp")
+#'
+#' # should be error, no file
+#' prepareMplusData(mtcars, interactive=FALSE)
+#'
+#' # new warnings if it is going to overwrite files
+#' # (the default to be consistent with prior behavior)
+#' prepareMplusData(mtcars, "test10.dat")
+#'
+#' # new warnings if it is going to overwrite files
+#' # (the default to be consistent with prior behavior)
+#' prepareMplusData(mtcars, "test11.dat", inpfile="test10alt.inp")
+#'
+#' # new errors if files exist and overwrite=FALSE
+#' prepareMplusData(mtcars, "test10.dat",
+#'   inpfile="test10alt.inp", overwrite=FALSE)
+#' }
+
+prepareMplusData <- function(df, filename, keepCols, dropCols, inpfile=FALSE,
+  interactive=TRUE, overwrite=TRUE) {
+
   stopifnot(inherits(df, "data.frame"))
 
   #only allow keep OR drop.
@@ -1166,14 +1261,38 @@ prepareMplusData <- function(df, filename, keepCols, dropCols) {
     stop("keepCols and dropCols passed to prepareMplusData. You must choose one or the other, but not both.")
   }
 
+  # assert types allowed for keep and drop cols
+  stopifnot(missing(keepCols) || is.character(keepCols) ||
+    is.numeric(keepCols) || is.logical(keepCols))
+
+  stopifnot(missing(dropCols) || is.character(dropCols) ||
+    is.numeric(dropCols) || is.logical(dropCols))
+
+  # if filename is missing and interactive is TRUE
+  # interactively (through GUI or console)
+  # request filename from user
+  if (missing(filename) && interactive) {
+    filename <- file.choose()
+  }
+
+  # if filename is still missing at this point
+  # throw an error
+  stopifnot(!missing(filename))
+
   #keep only columns specified by keepCols
   if (!missing(keepCols) && length(keepCols) > 0) {
-    df <- df[, keepCols]
+    df <- df[, keepCols] # works with all types
   }
 
   #drop columns specified by dropCols
   if (!missing(dropCols) && length(dropCols) > 0) {
-    df <- subset(df, select = -which(colnames(df) %in% dropCols))
+    if (is.character(dropCols)) {
+      df <- subset(df, select = -which(colnames(df) %in% dropCols))
+    } else if (is.numeric(dropCols)) {
+      df <- subset(df, select = -dropCols)
+    } else if (is.logical(dropCols)) {
+      df <- subset(df, select = !dropCols)
+    }
   }
 
   #convert factors to numbers
@@ -1181,7 +1300,9 @@ prepareMplusData <- function(df, filename, keepCols, dropCols) {
     #can't use ifelse because is.factor returns only one element,
     #and ifelse enforces identical length
     if (is.factor(col)) {
-      cat("Factor levels: ", paste(levels(col), collapse=", "), "converted to numbers: ", paste(seq_along(levels(col)), collapse=", "), "\n\n") #hope this logic is right -- looks like the numeric storage of the levels always corresponds to the order of the levels
+      # numeric storage of the levels corresponds to the order of the levels
+      cat("Factor levels: ", paste(levels(col), collapse=", "), "converted to numbers: ",
+        paste(seq_along(levels(col)), collapse=", "), "\n\n")
       col <- as.numeric(col)
     }
     if (is.character(col)) {
@@ -1190,7 +1311,17 @@ prepareMplusData <- function(df, filename, keepCols, dropCols) {
     return(col)
   }))
 
-  write.table(df, filename, sep="\t", col.names = FALSE, row.names = FALSE, na=".")
+  if (file.exists(filename)) {
+    if (overwrite) {
+      warning(paste("The file", sQuote(basename(filename)),
+        "currently exists and will be overwritten"))
+    } else {
+      stop(paste("The file", sQuote(basename(filename)),
+        "currently exists. Specify a different filename or set overwrite=TRUE"))
+    }
+  }
+
+  write.table(df, filename, sep = "\t", col.names = FALSE, row.names = FALSE, na=".")
 
   #variable created for readability
   variableNames <- paste(gsub("\\.", "_", names(df)), collapse=" ")
@@ -1204,7 +1335,34 @@ prepareMplusData <- function(df, filename, keepCols, dropCols) {
     paste(strwrap(paste("VARIABLE: NAMES = ", variableNames), width=85, exdent=5), collapse="\n"),
     ";\n\n", "MISSING=.;\n")
 
-  cat(syntax, sep="")
+  # if inpfile is a logical value and is TRUE
+  # then create the file using filename
+  # changing the extension to .inp
+  if (is.logical(inpfile) && inpfile) {
+    inpfile <- gsub("(.*)\\..*$", "\\1.inp", filename)
+  }
+
+  # if the input file is not a character
+  # either by user specification or automatically
+  # by replacing extension of filename with .inp
+  # then just use stdout
+  if (!is.character(inpfile)) {
+    inpfile <- stdout()
+  }
+
+  if (is.character(inpfile) && file.exists(inpfile)) {
+    if (overwrite) {
+      warning(paste("The file", sQuote(basename(inpfile)),
+        "currently exists and will be overwritten"))
+    } else {
+      stop(paste("The file", sQuote(basename(inpfile)),
+        "currently exists. Specify a different filename or set overwrite=TRUE"))
+    }
+  }
+
+  # write out syntax, either to stdout or to a file
+  cat(syntax, file=inpfile, sep="")
+
   # return invisible so it can be saved/reused if desired
   return(invisible(syntax))
 }
