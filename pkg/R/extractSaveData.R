@@ -30,16 +30,13 @@ l_getSavedata_Fileinfo <- function(outfile, outfiletext) {
   require(gsubfn)
   require(plyr)
   
-  sectionStarts <- c("Save file", #flat file
-      "Save file format", #fortran formats
-      "Order and format of variables", #output from FILE= command (analysis output)
+  sectionStarts <- c("Estimates", #estimates
       "Estimated Covariance Matrix for the Parameter Estimates", #tech3
       "Estimated Means and Covariance Matrix for the Latent Variables", #tech4
       "Sample/H1/Pooled-Within Matrix", #sample
       "Bayesian Parameters", #bparameters
       "Within and between sample statistics with Weight matrix", #swmatrix
-      "Estimates", #estimates
-      "Order of variables" #monte carlo
+      "Model Estimated Covariance Matrix" #covariance
   )
   
   #extract entire savedata section
@@ -54,60 +51,94 @@ l_getSavedata_Fileinfo <- function(outfile, outfiletext) {
   
   #initialize these variables to empty character strings so that list return value is complete
   #important in cases where some savedata output available, but other sections unused
-  listVars <- c("saveFile", "fileVarNames", "fileVarFormats", "fileVarWidths", "bayesFile", "bayesVarNames", "tech3File")
+  listVars <- c("saveFile", "fileVarNames", "fileVarFormats", "fileVarWidths", "bayesFile", "bayesVarNames", "tech3File", "covFile", "sampleFile", "estimatesFile")
   l_ply(listVars, assign, value=NA_character_, envir=environment())
   
   #in Mplus v7, "Save file" comes before "Order and format of variables"
   #new approach: process the savedata output more sequentially
-   
-  #process FILE= section (individual-level data from analysis)
-  #savedata filename
-  saveFile.text <- getSection("^\\s*Save file\\s*$", savedataSection, sectionStarts)
   
-  if (!is.null(saveFile.text)) {
-    saveFile <- trimSpace(saveFile.text[1]) #first line contains filename
+  #In general, the savedata section is formatted with the unlabeled stuff first.
+  #TECH3, TECH4, and BPARAMATERS are all labeled below
+  #Thus, the logic here is to parse all labeled sections, then remove these from consideration.
+  
+  linesParsed <- c()
+  
+  #model covariance matrix (COVARIANCE) -- only available when all DVs are continuous
+  ###  Model Estimated Covariance Matrix
+  ###
+  ###  Save file
+  ###    ex3.1.cov
+  ###  Save format      Free
+  
+  covSection <- getSection("^\\s*Model Estimated Covariance Matrix\\s*$", savedataSection, sectionStarts)
+  
+  if (!is.null(covSection)) {
+    covFileStart <- grep("^\\s*Save file\\s*$", covSection, ignore.case=TRUE, perl=TRUE)
+    if (length(covFileStart) > 0L) {
+      covFile <- trimSpace(covSection[covFileStart+1])      
+    }
+    linesParsed <- c(linesParsed, attr(covSection, "lines"))
   }
   
-  #save file format
-  saveFileFormat.text <- getSection("^\\s*Save file format\\s*$", savedataSection, sectionStarts)
+  #parameter estimates (ESTIMATES)
+  ###  Estimates
+  ###
+  ###  Save file
+  ###    ex3.1.est
+  ###  Save format      Free
+  estSection <- getSection("^\\s*Estimates\\s*$", savedataSection, sectionStarts)
   
-  if (!is.null(saveFileFormat.text)) {
-    saveFileFormat <- trimSpace(saveFileFormat.text[1]) #first line contains format
+  if (!is.null(estSection)) {
+    estFileStart <- grep("^\\s*Save file\\s*$", estSection, ignore.case=TRUE, perl=TRUE)
+    if (length(estFileStart) > 0L) {
+      estimatesFile <- trimSpace(estSection[estFileStart+1])      
+    }
+    linesParsed <- c(linesParsed, attr(estSection, "lines"))
   }
   
-  #file record length
-  #Skip for now
+  #sample/h1/pooled-within matrix (SAMPLE)
+  ###  Sample/H1/Pooled-Within Matrix
+  ###
+  ###  Save file
+  ###    ex3.12.sample
+  ###  Save type        CORRELATION
+  ###  Save format      Free
   
-  orderFormat.text <- getSection("^\\s*Order and format of variables\\s*$", savedataSection, sectionStarts)
+  sampleSection <- getSection("^\\s*Sample/H1/Pooled-Within Matrix\\s*$", savedataSection, sectionStarts)
   
-  if (!is.null(orderFormat.text)) {
-    variablesToParse <- orderFormat.text[orderFormat.text != ""]
-    
-    fileVarNames <- sub("^\\s*([\\w\\d\\.]+)\\s+[\\w\\d\\.]+\\s*$", "\\1", variablesToParse, perl=TRUE)
-    fileVarFormats <- sub("^\\s*[\\w\\d\\.]+\\s+([\\w\\d\\.]+)\\s*$", "\\1", variablesToParse, perl=TRUE)
-    fileVarWidths <- strapply(fileVarFormats, "[IEFG]+(\\d+)(\\.\\d+)*", as.numeric, perl=TRUE, simplify=TRUE)
-    
+  if (!is.null(sampleSection)) {
+    sampleFileStart <- grep("^\\s*Save file\\s*$", sampleSection, ignore.case=TRUE, perl=TRUE)
+    if (length(sampleFileStart) > 0L) {
+      sampleFile <- trimSpace(sampleSection[sampleFileStart+1])      
+    }
+    linesParsed <- c(linesParsed, attr(sampleSection, "lines"))
   }
   
-  #Monte carlo output: contains only order of variables, not their format
-  order.text <- getSection("^\\s*Order of variables\\s*$", savedataSection, sectionStarts)
+  #tech3 output (TECH3)
+  tech3Section <- getSection("^\\s*Estimated Covariance Matrix for the Parameter Estimates\\s*$", savedataSection, sectionStarts)
   
-  if (!is.null(order.text)) {
-	  #save data section exists, but doesn't contain this output. Maybe other savedata stuff, like bayesian, tech4, etc.
-	  
-	  #dump any blank fields because they will cause nulls in the names, formats, widths.
-	  #This is handled by blank.lines.skip=TRUE in wrappers, but readModels needs to retain blank lines
-	  #for other functions, so strip here.
-	  variablesToParse <- order.text[order.text != ""]
-	  
-	  #just have variable names, no formats
-    fileVarNames <- trimSpace(variablesToParse)
-	  	  
+  if (!is.null(tech3Section)) {
+    tech3FileStart <- grep("^\\s*Save file\\s*$", tech3Section, ignore.case=TRUE, perl=TRUE)
+    if (length(tech3FileStart) > 0L) {
+      tech3File <- trimSpace(tech3Section[tech3FileStart+1])      
+    }
+    linesParsed <- c(linesParsed, attr(tech3Section, "lines"))
   }
   
-  #Bayesian parameters section
+  #tech4 output (TECH4)
+  tech4Section <- getSection("^\\s*Estimated Means and Covariance Matrix for the Latent Variables\\s*$", savedataSection, sectionStarts)
+  
+  if (!is.null(tech4Section)) {
+    tech4FileStart <- grep("^\\s*Save file\\s*$", tech4Section, ignore.case=TRUE, perl=TRUE)
+    if (length(tech4FileStart) > 0L) {
+      tech4File <- trimSpace(tech4Section[tech4FileStart+1])      
+    }
+    linesParsed <- c(linesParsed, attr(tech4Section, "lines"))
+  }
+  
+  #Bayesian parameters section (BPARAMETERS)
   bparametersSection <- getSection("^\\s*Bayesian Parameters\\s*$", savedataSection, sectionStarts)
-    
+  
   if (!is.null(bparametersSection)) {
     
     bayesFileStart <- grep("^\\s*Save file\\s*$", bparametersSection, ignore.case=TRUE, perl=TRUE)
@@ -117,47 +148,92 @@ l_getSavedata_Fileinfo <- function(outfile, outfiletext) {
       bayesFile <- trimSpace(bparametersSection[bayesFileStart+1])
       paramOrderStart <- grep("^\\s*Order of parameters saved\\s*$", bparametersSection, ignore.case=TRUE, perl=TRUE)
       paramOrderSection <- sapply(bparametersSection[(paramOrderStart+2):length(bparametersSection)], trimSpace, USE.NAMES=FALSE) #trim leading/trailing spaces and skip "Order of parameters" line and the subsequent blank line
-
+      
       #parameters list ends with a blank line, so truncate section at next newline
       #or in case where section ends after last param, then no blank line is present (just end of vector), so do nothing
       nextBlankLine <- which(paramOrderSection == "")
       if (length(nextBlankLine) > 0) paramOrderSection <- paramOrderSection[1:(nextBlankLine[1]-1)]
-     
+      
       #rather than split into two columns, concatenate so that these are workable as column names
       #paramOrderSection <- strsplit(paramOrderSection, "\\s*,\\s*", perl=TRUE)
       #bayesVarTypes <- gsub("\\s+", "\\.", sapply(paramOrderSection, "[", 1), perl=TRUE)
       #bayesVarNames <- gsub("\\s+", "\\.", sapply(paramOrderSection, "[", 2), perl=TRUE)
-    
+      
       #15Mar2012: Workaround for bug: means for categorical latent variables are in output file listing
       #but these are not actually present in bparameters. Filter out
       paramOrderSection <- paramOrderSection[!grepl("Parameter\\s+\\d+, \\[ [^#]#\\d+ \\]", paramOrderSection, perl=TRUE)]
-       
+      
       bayesVarNames <- gsub("\\s*,\\s*", "_", paramOrderSection, perl=TRUE)
       bayesVarNames <- gsub("\\[", "MEAN", bayesVarNames, perl=TRUE)
       bayesVarNames <- gsub("\\s*\\]\\s*", "", bayesVarNames, perl=TRUE)
       bayesVarNames <- gsub("\\s+", ".", bayesVarNames, perl=TRUE)
       
-    }    
+    }
+    
+    linesParsed <- c(linesParsed, attr(bparametersSection, "lines"))
   } 
   
+  #remove all lines already parsed within named sections
+  #this should just leave basic savedata output containing save file info, MC replication info, etc.
+  if (length(linesParsed) > 0L) savedataSection <- savedataSection[linesParsed*-1] 
+   
+  #process FILE= section. Also applies to Monte Carlo and multiple imputation output
+  #savedata filename
+  saveFile.text <- grep("^\\s*Save file\\s*$", savedataSection, perl=TRUE)
+    
+  if (length(saveFile.text) > 0L) {
+    saveFile <- trimSpace(savedataSection[(saveFile.text[1L] + 1)])
+  }
+  
+  #save file format (sometimes on same line, sometimes on next line)
+#  saveFileFormat.text <- getSection("^\\s*Save file format", savedataSection, sectionStarts)
+#  
+#  #actually, sometimes the format is "Free" and falls on the same line...
+#  if (!is.null(saveFileFormat.text)) {
+#    saveFileFormat <- trimSpace(saveFileFormat.text[1]) #first line contains format
+#  }
+#  
+
+#  #file record length
+#  savefile.recordlength <- getSection("^\\s*Save file record length\\s+\\d+\\s*$", savedataSection, sectionStarts)
+#  #Skip for now
+  
+  orderFormat.text <- getMultilineSection("Order and format of variables", savedataSection, filename, allowMultiple=FALSE)
+  
+  #getSection("^\\s*Order and format of variables\\s*$", savedataSection, sectionStarts)
+  
+  if (!is.na(orderFormat.text[1L])) {
+    variablesToParse <- orderFormat.text[orderFormat.text != ""]
+    
+    fileVarNames <- sub("^\\s*([\\w\\d\\.]+)\\s+[\\w\\d\\.]+\\s*$", "\\1", variablesToParse, perl=TRUE)
+    fileVarFormats <- sub("^\\s*[\\w\\d\\.]+\\s+([\\w\\d\\.]+)\\s*$", "\\1", variablesToParse, perl=TRUE)
+    fileVarWidths <- strapply(fileVarFormats, "[IEFG]+(\\d+)(\\.\\d+)*", as.numeric, perl=TRUE, simplify=TRUE)
+    
+  }
+  
+  #Monte carlo and multiple imputation output: contains only order of variables, not their format
+  order.text <- getMultilineSection("Order of variables", savedataSection, filename, allowMultiple=FALSE)
+  
+  if (!is.na(order.text[1L])) {	  
+	  #dump any blank fields because they will cause nulls in the names, formats, widths.
+	  #This is handled by blank.lines.skip=TRUE in wrappers, but readModels needs to retain blank lines
+	  #for other functions, so strip here.
+	  variablesToParse <- order.text[order.text != ""]
+	  
+	  #just have variable names, no formats
+    fileVarNames <- trimSpace(variablesToParse)
+  }
+  
+
   #future: plausible values output from Bayesian runs
   #PLAUSIBLE VALUE MEAN, MEDIAN, SD, AND PERCENTILES FOR EACH OBSERVATION
   
-  #tech3 output
-  tech3Section <- getSection("^\\s*Estimated Covariance Matrix for the Parameter Estimates\\s*$", savedataSection, sectionStarts)
-  
-  if (!is.null(tech3Section)) {
-    tech3FileStart <- grep("^\\s*Save file\\s*$", tech3Section, ignore.case=TRUE, perl=TRUE)
-    if (length(tech3FileStart) > 0) {
-      tech3File <- trimSpace(tech3Section[tech3FileStart+1])      
-    }
-  }
 
   #return the file information as a list
   #N.B. Would like to shift return to "saveFile", but need to update everywhere and note deprecation in changelog
 
   return(list(fileName=saveFile, fileVarNames=fileVarNames, fileVarFormats=fileVarFormats, fileVarWidths=fileVarWidths,
-          bayesFile=bayesFile, bayesVarNames=bayesVarNames, tech3File=tech3File)) #bayesVarTypes=bayesVarTypes, 
+          bayesFile=bayesFile, bayesVarNames=bayesVarNames, tech3File=tech3File, tech4File=tech4File)) #bayesVarTypes=bayesVarTypes, 
 }
 
 #READ FILE= SAVEDATA OUTPUT
@@ -268,8 +344,7 @@ l_getSavedata_Bparams <- function(outfile, outfiletext, fileInfo, discardBurnin=
   
 }
 
-l_getSavedata_readRawFile <- function(outfile, outfiletext, format="fixed", fileName, varNames, varWidths) {
-  #browser()
+l_getSavedata_readRawFile <- function(outfile, outfiletext, format="fixed", fileName, varNames, varWidths, input) {
   outfileDirectory <- splitFilePath(outfile)$directory
 
   #if file requested is missing, then abort data pull
@@ -282,12 +357,13 @@ l_getSavedata_readRawFile <- function(outfile, outfiletext, format="fixed", file
   #to read the savedataFile. But if savedataFile has an absolute directory, don't append
   
   #if savedata directory is present and absolute, or if no directory in outfile, just use filename as is
-  if (!is.na(savedataSplit$directory) && savedataSplit$absolute)
+  if (!is.na(savedataSplit$directory) && savedataSplit$absolute) {
     savedataFile <- fileName #just use savedata filename if has absolute path
-  else if (is.na(outfileDirectory))
+  } else if (is.na(outfileDirectory)) {
     savedataFile <- fileName #just use savedata filename if outfile is missing path (working dir)
-  else
-    savedataFile <- file.path(outfileDirectory, fileName) #savedata path relative or absent and outfile dir is present
+  } else {
+    savedataFile <- file.path(outfileDirectory, fileName) #savedata path is relative or absent and outfile dir is present: append
+  }
   
   #cat("Outfile dir: ", outfileDirectory, "\n")
   #cat("Savedata directory: ", savedataSplit$directory, "\n")
@@ -298,10 +374,44 @@ l_getSavedata_readRawFile <- function(outfile, outfiletext, format="fixed", file
   #    na.strings="*", col.names=fileInfo$varNames)
   
   if (format == "free") {
-    #handle case where filename contains * indicating Monte Carlo/MI dataset with reps
+    #handle case where filename contains * indicating Monte Carlo (MC) or multiple imputation (MI) dataset with reps
     if (grepl("\\*", savedataSplit$filename, perl=TRUE)) {
-      #resplit now that outfileDir and savedataDir are assembled
-      resplit <- splitFilePath(savedataFile)
+      #N.B. Mplus does not output the directory to which the MC/MI replications are saved.
+      #Thus, the file name for the "Save file" section in "SAVEDATA INFORMATION" is always just the filename alone.
+      #Using MONTECARLO: SAVE = or DATA IMPUTATION: SAVE = in the input instructions, one can specify a relative or
+      #absolute path to the saved files. If this is set, then the above logic for determining
+      #where to look for saved data should be overridden. In particular, we should use
+      #the path from MONTECARLO: SAVE or DATA IMPUTATION: SAVE = and ignore where the output file is located.
+      
+      #if save command is present in montecarlo section and there is a directory specified, then use that.
+      #resplit now that outfileDir and savedataDir are assembled to setup wildcard matching using list.files.
+      
+      split.above <- splitFilePath(savedataFile) #get info the directory for the output file, as determined above
+    
+      if (!is.null(input$montecarlo$save)) {
+        mcmi.savesplit <- splitFilePath(input$montecarlo$save)
+      } else if (!is.null(input$data.imputation$save)) {
+        mcmi.savesplit <- splitFilePath(input$data.imputation$save)
+      } else {
+        mcmi.savesplit <- NULL
+      }
+      
+      if (!is.null(mcmi.savesplit) &&
+          !is.na(mcmi.savesplit$directory)) {
+        
+        if (mcmi.savesplit$absolute) {
+          resplit <- splitFilePath(file.path(mcmi.savesplit$directory, split.above$filename)) #concat absolute montecarlo: save dir with rep filename          
+        } else {
+          #mc save directory is present, but relative
+          #thus, need to combine it with directory above
+          if (!is.na(split.above$directory)) {
+            resplit <- splitFilePath(file.path(split.above$directory, mcmi.savesplit$directory, split.above$filename))  
+          }
+        }
+      } else {        
+        resplit <- splitFilePath(savedataFile)        
+      }
+      
       
       #patch file pattern to match perl syntax
       pat <- gsub("\\.", "\\\\.", resplit$filename, perl=TRUE)
@@ -311,10 +421,16 @@ l_getSavedata_readRawFile <- function(outfile, outfiletext, format="fixed", file
       
       dataset <- list()
       
-      for (f in 1:length(fileList)) {
-        dataset[[make.names(fileNames[f])]] <- read.table(file=fileList[f], header=FALSE,
-            na.strings="*", col.names=varNames, strip.white=TRUE)
+      if (length(fileList) == 0L) {
+        #function was generating error when files could not be found
+        warning("Unable to locate SAVEDATA files for filename: ", resplit$filename)
+      } else {
+        for (f in 1:length(fileList)) {
+          dataset[[make.names(fileNames[f])]] <- read.table(file=fileList[f], header=FALSE,
+              na.strings="*", col.names=varNames, strip.white=TRUE)
+        }        
       }
+      
     }
     else  
       dataset <- read.table(file=savedataFile, header=FALSE, na.strings="*", col.names=varNames, strip.white=TRUE)    

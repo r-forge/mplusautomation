@@ -65,21 +65,36 @@ extractParameters_1chunk <- function(filename, thisChunk, columnNames) {
     
     splitParams <- strsplit(paramsToParse, "\\s+", perl=TRUE)
     
+    #for the Significance column in 7-column Mplus output, it may be missing for a chunk (all n.s./not tested), or for a given row.
+    #Handle this condition here by adding FALSE for missing 7th column and converting * to TRUE.
+    if (length(columnNames) == 7L && columnNames[7L] == "sig") {
+      splitParams <- lapply(splitParams, function(col) {
+            lcol <- length(col)
+            if (lcol == 6L) { col[7L] <- "FALSE"
+            } else if (lcol == 7L && col[7L] == "*") { col[7L] <- "TRUE" 
+            } else if (lcol != 0) { warning("Unknown columns found for 7-column BAYES format") }
+            return(col)
+
+          })
+    }
+    
     #rbind the split list as a data.frame 
     parsedParams <- data.frame(do.call("rbind", splitParams), stringsAsFactors=FALSE)
-    
-    #use the column names detected in extractParameters_1section
-    names(parsedParams) <- columnNames
-    
+        
     #for each column, convert to numeric if it is. Otherwise, return as character
     parsedParams <- data.frame(lapply(parsedParams, function(col) {
               #a bit convoluted, but we want to test for a purely numeric string by using a regexp that only allows numbers, periods, and the minus sign
               #then sum the number of matches > 0 (i.e., where a number was found).
               #if the sum is the same as the length of the column, then all elements are purely numeric.
-              
-              if (sum(sapply(gregexpr("^[\\d\\.-]+$", col, perl=TRUE), "[", 1) > 0) == length(col)) return(as.numeric(col))
+              if (all(col %in% c("TRUE", "FALSE"))) return(as.logical(col)) #True/False significance check above
+              else if (sum(sapply(gregexpr("^[\\d\\.-]+$", col, perl=TRUE), "[", 1) > 0) == length(col)) return(as.numeric(col))
               else return(as.character(col))
             }), stringsAsFactors=FALSE)
+    
+  
+    #use the column names detected in extractParameters_1section
+    names(parsedParams) <- columnNames
+    
     
     #add the paramHeader to the data.frame
     parsedParams$paramHeader <- varTitle

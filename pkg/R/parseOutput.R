@@ -12,23 +12,26 @@ readModels <- function(target=getwd(), recursive=FALSE, filefilter) {
 
 		outfiletext <- scan(curfile, what="character", sep="\n", strip.white=FALSE, blank.lines.skip=FALSE)
 
-    allFiles[[listID]]$summaries <- extractSummaries_1file(outfiletext, curfile)
+    allFiles[[listID]]$input <- inp <- extractInput_1file(outfiletext, curfile)
+    allFiles[[listID]]$summaries <- extractSummaries_1file(outfiletext, curfile, input=inp)
     allFiles[[listID]]$parameters <- extractParameters_1file(outfiletext, curfile)
     allFiles[[listID]]$class_counts <- extractClassCounts(outfiletext, curfile) #latent class counts
 		allFiles[[listID]]$mod_indices <- extractModIndices_1file(outfiletext, curfile)
     allFiles[[listID]]$savedata_info <- fileInfo <- l_getSavedata_Fileinfo(curfile, outfiletext)
     
     #missing widths indicative of MI/MC run
-    if (!is.null(fileInfo) && is.na(fileInfo[["fileVarWidths"]]))
-      allFiles[[listID]]$savedata <- l_getSavedata_readRawFile(curfile, outfiletext, format="free", fileName=fileInfo[["fileName"]], varNames=fileInfo[["fileVarNames"]])
-    else
-      allFiles[[listID]]$savedata <- l_getSavedata_readRawFile(curfile, outfiletext, format="fixed", fileName=fileInfo[["fileName"]], varNames=fileInfo[["fileVarNames"]], varWidths=fileInfo[["fileVarWidths"]])
+    if (!is.null(fileInfo) && is.na(fileInfo[["fileVarWidths"]])) {
+      allFiles[[listID]]$savedata <- l_getSavedata_readRawFile(curfile, outfiletext, format="free", fileName=fileInfo[["fileName"]], varNames=fileInfo[["fileVarNames"]], input=inp)
+    } else {
+      allFiles[[listID]]$savedata <- l_getSavedata_readRawFile(curfile, outfiletext, format="fixed", fileName=fileInfo[["fileName"]], varNames=fileInfo[["fileVarNames"]], varWidths=fileInfo[["fileVarWidths"]], input=inp)
+    }
     
     allFiles[[listID]]$bparameters <- l_getSavedata_Bparams(curfile, outfiletext, fileInfo, discardBurnin=FALSE)
     allFiles[[listID]]$residuals <- extractResiduals(outfiletext, curfile)
     allFiles[[listID]]$tech1 <- extractTech1(outfiletext, curfile) #parameter specification
     allFiles[[listID]]$tech3 <- extractTech3(outfiletext, fileInfo, curfile) #covariance/correlation matrix of parameter estimates
     allFiles[[listID]]$tech4 <- extractTech4(outfiletext, curfile) #latent means
+    allFiles[[listID]]$tech9 <- extractTech9(outfiletext, curfile) #tech 9 output (errors and warnings for Monte Carlo output)
     
     #allFiles[[listID]]$facscores <- extractFacScores(outfiletext, curfile) #factor scores output...
     
@@ -155,7 +158,7 @@ getMultilineSection <- function(header, outfiletext, filename, allowMultiple=FAL
 		if (allowSpace==TRUE) headerRow <- grep(paste("^\\s*", header[level], "\\s*$", sep=""), targetText, perl=TRUE)
     else headerRow <- grep(paste("^", header[level], "$", sep=""), targetText, perl=TRUE) #useful for equality of means where we just want anything with 0 spaces
 		
-		if (length(headerRow) == 1 || (length(headerRow) > 0 && allowMultiple==TRUE)) {
+		if (length(headerRow) == 1L || (length(headerRow) > 0L && allowMultiple==TRUE)) {
 			for (r in 1:length(headerRow)) {
         #locate the position of the first non-space character
         numSpacesHeader <- regexpr("\\S+.*$", targetText[headerRow[r]], perl=TRUE) - 1
@@ -199,14 +202,14 @@ getMultilineSection <- function(header, outfiletext, filename, allowMultiple=FAL
 		}
 		else {
 			targetText <- NA_character_
-			if (length(headerRow) > 1) warning(paste("Multiple matches for header: ", header, "\n  ", filename, sep=""))
+			if (length(headerRow) > 1L) warning(paste("Multiple matches for header: ", header, "\n  ", filename, sep=""))
 			break
 			#else if (length(headerRow) < 1) warning(paste("Could not locate section based on header: ", header, "\n  ", filename, sep=""))
 		}
 		
 	}
 	
-  if (length(sectionList) > 0 && allowMultiple) {
+  if (length(sectionList) > 0L && allowMultiple) {
     attr(sectionList, "matchlines") <- headerRow
     return(sectionList)
   }
@@ -462,7 +465,81 @@ extractSummaries_1section <- function(modelFitSection, arglist, filename) {
 	return(arglist)
 }
 
-extractSummaries_1file <- function(outfiletext, filename, extract=c("Title", "LL", "BIC", "AIC", "AICC",
+divideIntoFields <- function(section.text, required) {
+  #helper function to divide an input section into key-value pair list
+  #taken from mplus2lavaan
+  if (is.null(section.text)) { return(NULL) }
+  section.split <- strsplit(paste(section.text, collapse=" "), ";", fixed=TRUE)[[1]]
+  
+  section.divide <- list()
+  
+  for (cmd in section.split) {
+    if (grepl("^\\s*!.*", cmd, perl=TRUE)) next #skip comment lines
+    if (grepl("^\\s+$", cmd, perl=TRUE)) next #skip blank lines
+    
+    #force text matches at word boundary, or just split on = (\b doesn't work for =)
+    cmd.split <- strsplit(cmd[1L], "(\\b(IS|ARE|is|are|Is|Are)\\b|=)", perl=TRUE)[[1]]
+    if (!length(cmd.split) == 2L) stop("First line not dividing into LHS and RHS: ", cmd[1L])
+    
+    cmdName <- trimSpace(cmd.split[1L])
+    cmdArgs <- trimSpace(cmd.split[2L])
+    
+    section.divide[[make.names(tolower(cmdName))]] <- cmdArgs
+    
+  }
+  
+  if (!missing(required)) { stopifnot(all(required %in% names(section.divide))) }
+  return(section.divide)
+}
+
+extractInput_1file <- function(outfiletext, filename) {
+  #function to extract and parse mplus input syntax from the output file. 
+  input <- list()
+  class(input) <- c("list", "mplus.inp")
+  
+  startInput <- grep("^\\s*INPUT INSTRUCTIONS\\s*$", outfiletext, ignore.case=TRUE, perl=TRUE)
+  if (length(startInput) == 0L) {
+    warning("Could not find beginning of input")
+    return(input)
+  }
+  
+  endInput <- grep("^\\s*(INPUT READING TERMINATED NORMALLY|\\*\\*\\* WARNING.*|\\d+ (?:ERROR|WARNING)\\(S\\) FOUND IN THE INPUT INSTRUCTIONS|\\*\\*\\* ERROR.*)\\s*$", outfiletext, ignore.case=TRUE, perl=TRUE)
+  if (length(endInput) == 0L) {
+    warning("Could not find end of input")
+    return(input)
+  }
+  
+  input.text <- outfiletext[(startInput[1L] + 1):(endInput[1L] - 1)] #explicit first element because there could be both warnings and errors.
+  
+  #some code adapted from mplus2lavaan prototype
+  inputHeaders <- grep("^\\s*(title:|data.*:|variable:|define:|analysis:|model.*:|output:|savedata:|plot:|montecarlo:)", input.text, ignore.case=TRUE, perl=TRUE)
+  
+  stopifnot(length(inputHeaders) > 0L)
+  
+  for (h in 1:length(inputHeaders)) {
+    sectionEnd <- ifelse(h < length(inputHeaders), inputHeaders[h+1] - 1, length(input.text))
+    section <- input.text[inputHeaders[h]:sectionEnd]
+    sectionName <- trimSpace(sub("^([^:]+):.*$", "\\1", section[1L], perl=TRUE)) #obtain text before the colon
+    
+    #dump section name from input syntax
+    section[1L] <- sub("^[^:]+:(.*)$", "\\1", section[1L], perl=TRUE)
+    
+    input[[make.names(tolower(sectionName))]] <- section
+  }
+  
+  #divide some input sections into fields
+  #need to do a better job here of handling blank lines and such
+  input$title <- paste(trimSpace(input$title), collapse=" ")
+  input$data <- divideIntoFields(input$data)
+  input$data.imputation <- divideIntoFields(input$data.imputation)
+  input$variable <- divideIntoFields(input$variable)
+  input$analysis <- divideIntoFields(input$analysis)
+  input$montecarlo <- divideIntoFields(input$montecarlo)
+  
+  return(input)  
+}
+
+extractSummaries_1file <- function(outfiletext, filename, input, extract=c("Title", "LL", "BIC", "AIC", "AICC",
   "Parameters", "Observations", "BLRT", "RMSEA", "CFI", "TLI", "ChiSqModel", "aBIC", 
   "Estimator", "SRMR", "WRMR", "ChiSqBaseline"))
 {
@@ -477,83 +554,37 @@ extractSummaries_1file <- function(outfiletext, filename, extract=c("Title", "LL
   #arglist = vector("list", length(extract))  
   arglist <- list()
   
-  #PROCESS FIELDS OF INTEREST IN INPUT INSTRUCTIONS SECTION
-  startInput <- grep("^\\s*INPUT INSTRUCTIONS\\s*$", outfiletext, ignore.case=TRUE, perl=TRUE)
-  if (length(startInput) == 0) warning("Could not find beginning of input")
-     
-  endInput <- grep("^\\s*(INPUT READING TERMINATED NORMALLY|\\d+ (?:ERROR|WARNING)\\(S\\) FOUND IN THE INPUT INSTRUCTIONS|\\*\\*\\* ERROR.*)\\s*$", outfiletext, ignore.case=TRUE, perl=TRUE)
-  if (length(endInput) == 0) warning("Could not find end of input")
-
-  inputSection <- outfiletext[(startInput[1L] + 1):(endInput[1L] - 1)] #explicit first element because there could be both warnings and errors.
-  inputHeaders <- grep("^\\s*(data:|variable:|define:|analysis:|model:|output:|savedata:|plot:|montecarlo:)", inputSection, ignore.case=TRUE, perl=TRUE)
-  
-  #OBTAIN MPLUS SOFTWARE VERSION
+  #obtain mplus software version
   if ((mplus.version <- regexpr("\\s*Mplus VERSION ([\\d\\.]+)\\s*", outfiletext[1L], perl=TRUE)) > 0L) {
     arglist$Mplus.version <- substr(outfiletext[1L], attr(mplus.version, "capture.start")[1L], attr(mplus.version, "capture.start")[1L] + attr(mplus.version, "capture.length")[1L] - 1)    
   }
+
+  ###Copy some elements of the input instructions into the summaries
   
-  #PROCESS TITLE
-  if ("Title" %in% extract) {
-    titleStart <- grep("^\\s*title:", inputSection, ignore.case=TRUE, perl=TRUE)
-    if (length(titleStart) == 1) {
-      
-      titleEnd <- inputHeaders[inputHeaders > titleStart][1] - 1 #subtract 1 to go to line preceding next keyword
-      stopifnot(titleEnd > 0)
-      
-      #if title spans multiple lines, then collapse into one string
-      title <- paste(inputSection[titleStart:titleEnd], collapse=" ")
-      
-      #delete the "Title: " piece from the match       
-      title <- sub("^\\s*title:\\s*", "", title, ignore.case=TRUE, perl=TRUE)
-      
-      #convert multiple spaces into a single space (occurs when title spans many lines and has indentation)
-      title <- gsub("\\s+", " ", title, ignore.case=TRUE, perl=TRUE)
-      
-      arglist$Title <- title
-    }
-    else {
-      warning("Unable to locate title field. Returning missing")
-      arglist$Title <- NA_character_
-    }
+  #copy title into arglist
+  if ("Title" %in% extract && !is.null(input$title)) {
+    arglist$Title <- input$title
+  } else {
+    #warning("Unable to locate title field. Returning missing") #Warning doesn't seem very useful
+    arglist$Title <- NA_character_
   }
-  
+    
   #extract the analysis type, which is important for setting other parameters.
-	#allow for analysis type to reside on same line as analysis section header
-  analysisSectionStart <- grep("^\\s*analysis\\s*:.*$", inputSection, ignore.case=TRUE, perl=TRUE)
-  if (length(analysisSectionStart) > 0) {
-    #check whether analysis is the last input section in order to find section end
-    if (analysisSectionStart < max(inputHeaders)) analysisSectionEnd <- inputHeaders[inputHeaders > analysisSectionStart][1] - 1
-    else analysisSectionEnd <- length(inputSection)
-
-    analysisSection <- inputSection[analysisSectionStart:analysisSectionEnd]
-    
-    analysisTypeLine <- grep("^(\\s*analysis:)*\\s*TYPE\\s*(IS|=|ARE)\\s*.*;$", analysisSection, ignore.case=TRUE, perl=TRUE, value=TRUE) 
-    
-    if (length(analysisTypeLine) > 0)
-      arglist$AnalysisType <- sub("^(\\s*analysis:)*\\s*TYPE\\s*(IS|=|ARE)\\s*(.*);", "\\3", analysisTypeLine, ignore.case=TRUE, perl=TRUE)
-    else
-      arglist$AnalysisType <- "GENERAL"
+  if (!is.null(input$analysis$type)) {
+    arglist$AnalysisType <- input$analysis$type
+  } else {
+    arglist$AnalysisType <- "GENERAL" #Analysis type not specified, default to general
   }
-  else arglist$AnalysisType <- "GENERAL" #no analysis section specified in input. Default general
-  
-	#extract the data type (important for detecting imputation datasets)
-	dataSectionStart <- grep("^\\s*data\\s*:.*$", inputSection, ignore.case=TRUE, perl=TRUE)
-	if (length(dataSectionStart) > 0) {
-		#check whether data is the last input section in order to find section end
-    if (dataSectionStart < max(inputHeaders)) dataSectionEnd <- inputHeaders[inputHeaders > dataSectionStart][1] - 1
-    else dataSectionEnd <- length(inputSection)
 
-		dataSection <- inputSection[dataSectionStart:dataSectionEnd]
-		
-		dataTypeLine <- grep("^(\\s*data:)*\\s*TYPE\\s*(IS|=|ARE)\\s*.*;$", dataSection, ignore.case=TRUE, perl=TRUE, value=TRUE) 
-		
-		if (length(dataTypeLine) > 0)
-			arglist$DataType <- sub("^(\\s*data:)*\\s*TYPE\\s*(IS|=|ARE)\\s*(.*);", "\\3", dataTypeLine, ignore.case=TRUE, perl=TRUE)
-		else
-			arglist$DataType <- "INDIVIDUAL"
-	}
-	else arglist$DataType <- "INDIVIDUAL" #no data section specified in input. Default individual
-	#END INPUT INSTRUCTIONS PROCESSING  
+	#extract the data type (important for detecting imputation datasets)
+  if (!is.null(input$data$type)) {
+    arglist$DataType <- input$analysis$type
+  } else {
+    arglist$DataType <- "INDIVIDUAL" #Data type not specified, default to individual
+  }
+
+	#End input instructions processing  
+
 
   #BEGIN ANALYSIS SUMMARY PROCESSING
   analysisSummarySection <- getSection("^\\s*SUMMARY OF ANALYSIS\\s*$", outfiletext)
@@ -1210,6 +1241,7 @@ extractTech3 <- function(outfiletext, savedata_info, filename) {
 }
 
 extractTech4 <- function(outfiletext, filename) {
+  #TODO: have empty list use mplus.tech4 class
   tech4Section <- getSection("^TECHNICAL 4 OUTPUT$", outfiletext)
   if (is.null(tech4Section)) return(list()) #no tech4 output
   
@@ -1247,6 +1279,32 @@ extractTech4 <- function(outfiletext, filename) {
   class(tech4List) <- c("list", "mplus.tech4")
   
   return(tech4List)
+}
+
+extractTech9 <- function(outfiletext, filename) {
+  tech9List <- list()
+  class(tech9List) <- c("list", "mplus.tech9")
+  
+  tech9Section <- getSection("^TECHNICAL 9 OUTPUT$", outfiletext)
+  if (is.null(tech9Section)) return(tech9List) #no tech9 output
+  
+  tech9Reps <- grep("^\\s*REPLICATION \\d+:\\s*$", tech9Section, perl=TRUE)
+  
+  repNums <- as.numeric(gsub("^\\s*REPLICATION (\\d+):\\s*$", "\\1", tech9Section[tech9Reps], perl=TRUE))
+   
+  if (length(tech9Reps) > 0L) {
+    for (l in 1:length(tech9Reps)) {
+      if (l < length(tech9Reps)) {
+        msg <- paste(tech9Section[ (tech9Reps[l]+1):(tech9Reps[l+1]-1) ], collapse=" ")
+      } else {
+        msg <- paste(tech9Section[ (tech9Reps[l]+1):length(tech9Section) ], collapse=" ")
+      }
+      msg <- trimSpace(gsub("\\s+", " ", msg, perl=TRUE))
+      tech9List[[ paste0("rep", repNums[l]) ]] <- list(rep=repNums[l], error=msg) 
+    }
+  }
+   
+  return(tech9List)
 }
 
 extractTech10 <- function(outfiletext, filename) {

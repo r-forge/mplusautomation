@@ -224,7 +224,7 @@ getSection <- function(sectionHeader, outfiletext, headers="standard") {
   #if section header cannot be found, then bail out
   if (is.na(beginSection)) return(NULL)
   
-  #form alternation pattern for regular expression (currently allows for leading and trailing spaces
+  #form alternation pattern for regular expression (currently adds leading and trailing spaces permission to each header)
   headerRegexpr <- paste("(", paste(gsub("(.*)", "^\\\\s*\\1\\\\s*$", headers, perl=TRUE), sep="", collapse="|"), ")", sep="") 
   headerLines <- grep(headerRegexpr, outfiletext, perl=TRUE)
   subsequentHeaders <- which(headerLines > beginSection)
@@ -232,20 +232,10 @@ getSection <- function(sectionHeader, outfiletext, headers="standard") {
   if (length(subsequentHeaders) == 0) nextHeader <- length(outfiletext) #just return the whole enchilada
   else nextHeader <- headerLines[subsequentHeaders[1]] - 1
 
-  #fallback to blank line based search if the keyword-matching method fails.
-  #note that this could also occur if the section requested is the last section of the file
-  #but this should (almost) always be MUTHEN & MUTHEN, which terminates the file
-#ACTUALLY, this code is somewhat pointless. What will happen instead is that an incorrectly matched
-#section will contain the next section until a familiar header is found.
+  section.found <- outfiletext[(beginSection+1):nextHeader]
+  attr(section.found, "lines") <- beginSection:nextHeader
   
-#  if (length(subsequentHeaders) == 0) {
-#    warning(paste("Falling back to blank line method for detecting output sections.\n", 
-#            "  Please forward the output file and this message to Michael Hallquist: michael.hallquist@gmail.com\n", 
-#            "  This will help to improve future iterations of the package.", sep=""))
-#    return(getSection_Blanklines(sectionHeader, outfiletext))
-#  }
-    
-  return(outfiletext[(beginSection+1):nextHeader])
+  return(section.found)
   
 }
 
@@ -316,8 +306,8 @@ splitFilePath <- function(abspath) {
     components <- components[-lcom]
     dirpart <- do.call("file.path", as.list(components))
     
-    #if path begins with C:, /, //, or \\, then treat as absolute
-    if (grepl("^([A-Z]{1}:|/|//|\\\\)+.*$", dirpart, perl=TRUE)) absolute <- TRUE
+    #if path begins with C:, /, ~/, //, or \\, then treat as absolute
+    if (grepl("^([A-Z]{1}:|~/|/|//|\\\\)+.*$", dirpart, perl=TRUE)) absolute <- TRUE
   }
   
   return(list(directory=dirpart, filename=relFilename, absolute=absolute))
@@ -345,8 +335,13 @@ detectColumnNames <- function(filename, modelSection, sectionType="model_results
           identical (nextLine, c("Estimate", "S.D.", "P-Value", "Lower", "2.5%", "Upper", "2.5%")))
         varNames <- c("param", "est", "posterior_sd", "pval", "lower_2.5ci", "upper_2.5ci")
 
+      #Bayesian (ESTIMATOR=BAYES) 7-column output (Mplus v7) 
+      else if (identical(thisLine, c("Posterior", "One-Tailed", "95%", "C.I.")) &&
+          identical (nextLine, c("Estimate", "S.D.", "P-Value", "Lower", "2.5%", "Upper", "2.5%", "Significance")))
+        varNames <- c("param", "est", "posterior_sd", "pval", "lower_2.5ci", "upper_2.5ci", "sig")
+      
       #Monte Carlo output (e.g., UG ex12.4)
-      if (identical(thisLine, c("ESTIMATES", "S.", "E.", "M.", "S.", "E.", "95%", "%", "Sig")) &&
+      else if (identical(thisLine, c("ESTIMATES", "S.", "E.", "M.", "S.", "E.", "95%", "%", "Sig")) &&
           identical (nextLine, c("Population", "Average", "Std.", "Dev.", "Average", "Cover", "Coeff")))
         varNames <- c("param", "population", "average", "population_sd", "average_se", "mse", "cover_95", "pct_sig_coef")      
       
