@@ -571,5 +571,4 @@ l_getSavedata_readRawFile <- function(outfile, outfiletext, format="fixed", file
   }
 
   return(dataset)
-
 }
