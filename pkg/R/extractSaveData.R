@@ -51,7 +51,8 @@ l_getSavedata_Fileinfo <- function(outfile, outfiletext) {
   
   #initialize these variables to empty character strings so that list return value is complete
   #important in cases where some savedata output available, but other sections unused
-  listVars <- c("saveFile", "fileVarNames", "fileVarFormats", "fileVarWidths", "bayesFile", "bayesVarNames", "tech3File", "covFile", "sampleFile", "estimatesFile")
+  listVars <- c("saveFile", "fileVarNames", "fileVarFormats", "fileVarWidths", "bayesFile", "bayesVarNames", 
+      "tech3File", "tech4File", "covFile", "sampleFile", "estimatesFile")
   l_ply(listVars, assign, value=NA_character_, envir=environment())
   
   #in Mplus v7, "Save file" comes before "Order and format of variables"
