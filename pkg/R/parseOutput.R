@@ -13,6 +13,9 @@ readModels <- function(target=getwd(), recursive=FALSE, filefilter) {
 		outfiletext <- scan(curfile, what="character", sep="\n", strip.white=FALSE, blank.lines.skip=FALSE)
 
     allFiles[[listID]]$input <- inp <- extractInput_1file(outfiletext, curfile)
+    warn_err <- extractWarningsErrors_1file(outfiletext, filename, input=inp)
+    allFiles[[listID]]$warnings <- warn_err$warnings
+    allFiles[[listID]]$errors <- warn_err$errors
     allFiles[[listID]]$summaries <- extractSummaries_1file(outfiletext, curfile, input=inp)
     allFiles[[listID]]$parameters <- extractParameters_1file(outfiletext, curfile)
     allFiles[[listID]]$class_counts <- extractClassCounts(outfiletext, curfile) #latent class counts
@@ -479,8 +482,13 @@ divideIntoFields <- function(section.text, required) {
     
     #force text matches at word boundary, or just split on = (\b doesn't work for =)
     cmd.split <- strsplit(cmd[1L], "(\\b(IS|ARE|is|are|Is|Are)\\b|=)", perl=TRUE)[[1]]
-    if (!length(cmd.split) == 2L) stop("First line not dividing into LHS and RHS: ", cmd[1L])
-    
+    if (length(cmd.split) < 2L) { stop("First line not dividing into LHS and RHS: ", cmd[1L])
+    } else if (length(cmd.split) > 2L) {
+      #probably more than one equals sign, such as knownclass: KNOWNCLASS = g (grp = 1 grp = 2 grp = 3)
+      cmd.split[2L] <- paste(cmd.split[-1L], collapse="=")
+      cmd.split <- cmd.split[1L:2L]
+    }
+        
     cmdName <- trimSpace(cmd.split[1L])
     cmdArgs <- trimSpace(cmd.split[2L])
     
@@ -492,6 +500,64 @@ divideIntoFields <- function(section.text, required) {
   return(section.divide)
 }
 
+extractWarningsErrors_1file <- function(outfiletext, filename, input) {
+  warnerr <- list(warnings=list(), errors=list())
+  class(warnerr) <- c("list", "mplus.warn.err")
+  
+  if (!inherits(input, "mplus.inp")) {
+    warning("Could not identify warnings and errors input is not of class mplus.inp")
+    return(warnerr)
+  }
+  
+  if (is.null(attr(input, "start.line")) || is.null(attr(input, "end.line")) ||
+      attr(input, "start.line") < 0L || attr(input, "end.line") < 0L) {
+    warning("Could not identify bounds of input section: ", filename)
+    return(warnerr)
+  }
+   
+  startWarnErr <- attr(input, "end.line") + 1L
+  
+  endWarnErr <- grep("^\\s*(INPUT READING TERMINATED NORMALLY|\\*\\*\\* WARNING.*|\\d+ (?:ERROR|WARNING)\\(S\\) FOUND IN THE INPUT INSTRUCTIONS|\\*\\*\\* ERROR.*)\\s*$", outfiletext, ignore.case=TRUE, perl=TRUE)
+  if (length(endWarnErr) == 0L || startWarnErr == endWarnErr[length(endWarnErr)]) {
+    return(warnerr) #unable to find end of warnings (weird), or there are none.
+  }
+  
+  #The above will match all of the possible relevant lines.
+  #To identify warnings section, need to go to first blank line after the final warning or error. (look in next 100 lines)
+  lastWarn <- endWarnErr[length(endWarnErr)]
+  blank <- which(outfiletext[lastWarn:(lastWarn + 100 )] == "")[1L] + lastWarn - 1 
+  
+  warnerrtext <- outfiletext[startWarnErr[1L]:(blank-1)]
+  
+  lines <- friendlyGregexpr("^\\s*(\\*\\*\\* WARNING|\\*\\*\\* ERROR).*\\s*$", warnerrtext, perl=TRUE)
+  
+  w <- 1
+  e <- 1
+  
+  if (!is.null(lines)) {
+    for (l in 1:nrow(lines)) {
+      if (l < nrow(lines)) {
+        warn.err.body <- trimSpace(warnerrtext[(lines[l,"element"] + 1):(lines[l+1,"element"] - 1)])
+        
+        if (substr(lines[l,"tag"], 1, 11) == "*** WARNING") { 
+          warnerr$warnings[[w]] <- warn.err.body
+          w <- w + 1
+        } else if (substr(lines[l,"tag"], 1, 9) == "*** ERROR") { 
+          warnerr$errors[[e]] <- warn.err.body
+          splittag <- strsplit(lines[l,"tag"], "\\s+", perl=TRUE)[[1L]]
+          if (length(splittag) > 3L && splittag[3L] == "in") {
+            attr(warnerr$errors[[e]], "section") <- tolower(paste(splittag[4L:(which(splittag == "command") - 1L)] ))
+          }
+          e <- e + 1
+        } else { stop ("Cannot discern warning/error type: ", lines[l, "tag"]) }
+      }
+    }
+  }
+  
+  return(warnerr)
+  
+}
+
 extractInput_1file <- function(outfiletext, filename) {
   #function to extract and parse mplus input syntax from the output file. 
   input <- list()
@@ -499,17 +565,19 @@ extractInput_1file <- function(outfiletext, filename) {
   
   startInput <- grep("^\\s*INPUT INSTRUCTIONS\\s*$", outfiletext, ignore.case=TRUE, perl=TRUE)
   if (length(startInput) == 0L) {
-    warning("Could not find beginning of input")
+    warning("Could not find beginning of input for: ", filename)
+    attr(input, "start.line") <- attr(input, "end.line") <- -1L
     return(input)
-  }
+  } else { startInput <- startInput[1L] + 1L } #skip input instructions line itself
   
   endInput <- grep("^\\s*(INPUT READING TERMINATED NORMALLY|\\*\\*\\* WARNING.*|\\d+ (?:ERROR|WARNING)\\(S\\) FOUND IN THE INPUT INSTRUCTIONS|\\*\\*\\* ERROR.*)\\s*$", outfiletext, ignore.case=TRUE, perl=TRUE)
   if (length(endInput) == 0L) {
-    warning("Could not find end of input")
+    warning("Could not find end of input for: ", filename)
+    attr(input, "start.line") <- attr(input, "end.line") <- -1
     return(input)
-  }
+  } else { endInput <- endInput[1L] - 1L } #one line before first warning or end of instructions 
   
-  input.text <- outfiletext[(startInput[1L] + 1):(endInput[1L] - 1)] #explicit first element because there could be both warnings and errors.
+  input.text <- outfiletext[startInput[1L]:endInput[1L]] #explicit first element because there could be both warnings and errors.
   
   #some code adapted from mplus2lavaan prototype
   inputHeaders <- grep("^\\s*(title:|data.*:|variable:|define:|analysis:|model.*:|output:|savedata:|plot:|montecarlo:)", input.text, ignore.case=TRUE, perl=TRUE)
@@ -535,6 +603,10 @@ extractInput_1file <- function(outfiletext, filename) {
   input$variable <- divideIntoFields(input$variable)
   input$analysis <- divideIntoFields(input$analysis)
   input$montecarlo <- divideIntoFields(input$montecarlo)
+
+  
+  attr(input, "start.line") <- startInput
+  attr(input, "end.line") <- endInput
   
   return(input)  
 }
