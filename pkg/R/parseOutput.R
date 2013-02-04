@@ -502,10 +502,11 @@ divideIntoFields <- function(section.text, required) {
 
 extractWarningsErrors_1file <- function(outfiletext, filename, input) {
   warnerr <- list(warnings=list(), errors=list())
-  class(warnerr) <- c("list", "mplus.warn.err")
+  class(warnerr$errors) <- c("list", "mplus.errors")
+  class(warnerr$warnings) <- c("list", "mplus.warnings")
   
   if (!inherits(input, "mplus.inp")) {
-    warning("Could not identify warnings and errors input is not of class mplus.inp")
+    warning("Could not identify warnings and errors; input is not of class mplus.inp")
     return(warnerr)
   }
   
@@ -514,11 +515,11 @@ extractWarningsErrors_1file <- function(outfiletext, filename, input) {
     warning("Could not identify bounds of input section: ", filename)
     return(warnerr)
   }
-   
+  
   startWarnErr <- attr(input, "end.line") + 1L
   
   endWarnErr <- grep("^\\s*(INPUT READING TERMINATED NORMALLY|\\*\\*\\* WARNING.*|\\d+ (?:ERROR|WARNING)\\(S\\) FOUND IN THE INPUT INSTRUCTIONS|\\*\\*\\* ERROR.*)\\s*$", outfiletext, ignore.case=TRUE, perl=TRUE)
-  if (length(endWarnErr) == 0L || startWarnErr == endWarnErr[length(endWarnErr)]) {
+  if (length(endWarnErr) == 0L) {
     return(warnerr) #unable to find end of warnings (weird), or there are none.
   }
   
@@ -538,19 +539,21 @@ extractWarningsErrors_1file <- function(outfiletext, filename, input) {
     for (l in 1:nrow(lines)) {
       if (l < nrow(lines)) {
         warn.err.body <- trimSpace(warnerrtext[(lines[l,"element"] + 1):(lines[l+1,"element"] - 1)])
-        
-        if (substr(lines[l,"tag"], 1, 11) == "*** WARNING") { 
-          warnerr$warnings[[w]] <- warn.err.body
-          w <- w + 1
-        } else if (substr(lines[l,"tag"], 1, 9) == "*** ERROR") { 
-          warnerr$errors[[e]] <- warn.err.body
-          splittag <- strsplit(lines[l,"tag"], "\\s+", perl=TRUE)[[1L]]
-          if (length(splittag) > 3L && splittag[3L] == "in") {
-            attr(warnerr$errors[[e]], "section") <- tolower(paste(splittag[4L:(which(splittag == "command") - 1L)] ))
-          }
-          e <- e + 1
-        } else { stop ("Cannot discern warning/error type: ", lines[l, "tag"]) }
+      } else {
+        warn.err.body <- trimSpace(warnerrtext[(lines[l,"element"] + 1):length(warnerrtext)])
       }
+      
+      if (substr(lines[l,"tag"], 1, 11) == "*** WARNING") { 
+        warnerr$warnings[[w]] <- warn.err.body
+        w <- w + 1
+      } else if (substr(lines[l,"tag"], 1, 9) == "*** ERROR") { 
+        warnerr$errors[[e]] <- warn.err.body
+        splittag <- strsplit(lines[l,"tag"], "\\s+", perl=TRUE)[[1L]]
+        if (length(splittag) > 3L && splittag[3L] == "in") {
+          attr(warnerr$errors[[e]], "section") <- tolower(paste(splittag[4L:(which(splittag == "command") - 1L)], collapse="."))
+        }
+        e <- e + 1
+      } else { stop ("Cannot discern warning/error type: ", lines[l, "tag"]) }
     }
   }
   
