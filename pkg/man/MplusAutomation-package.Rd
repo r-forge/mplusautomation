@@ -53,10 +53,9 @@ In addition to the major functions above, a function for converting an R data.fr
 names.
 }
 \author{
-Michael Hallquist
+Michael Hallquist and Joshua Wiley
 
-Maintainers: Michael Hallquist <michael.hallquist@gmail.com>
-   Joshua Wiley <jwiley.psych@gmail.com>
+Maintainer: Michael Hallquist <michael.hallquist@gmail.com>
 }
 \references{
 Mplus software. Muthen and Muthen. \url{http://www.statmodel.com} 
