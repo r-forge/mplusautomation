@@ -67,7 +67,7 @@ mplus.traceplot <- function(mplus.model, rows=4, cols=4, parameters_only=TRUE) {
   #whether to restrict to parameters, as opposed to STD, STDY, STDYX, R-SQUARE, etc.
   if (parameters_only) {
     pkeep <- grep("^Parameter", parameters.autocorr$statements)
-    if (length(params) > 0) {
+    if (length(pkeep) > 0) {
       parameters.autocorr$statements <- parameters.autocorr$statements[pkeep]
       parameters.autocorr$parameters <- parameters.autocorr$parameters[,,pkeep, drop=FALSE]
       parameters.autocorr$autocorrelation <- parameters.autocorr$autocorrelation[,pkeep,, drop=FALSE]

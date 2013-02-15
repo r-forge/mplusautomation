@@ -1,10 +1,13 @@
 Version 0.5-4
-- feature: readModels now stores parsed Mplus input syntax in $input (read from the INPUT INSTRUCTIONS in .out file).
+- feature: readModels extracts warnings and errors.
+- feature: prepareMplusData now optionally allows for a .inp to be written or for interactive selection of a filename. 
+- feature: readModels now stores (somewhat) parsed Mplus input syntax in $input (read from the INPUT INSTRUCTIONS in .out file).
 - feature: readModels now parses error messages from Monte Carlo output (TECH9) into tech9.
 - feature: Mplus software version now extracted as Mplus.version in model summaries.
 - feature: showSummaryTable, LatexSummaryTable, and HTMLSummaryTable now accept model lists from readModels (no need to extract summaries from each).
+- feature: readModels extracts SAMPLE STATISTICS FOR ESTIMATED FACTOR SCORES section associated with PLOT3 into fac_score_stats. 
 - feature: extractTech1 now parses TAU(U) sections in mixture models with class-varying thresholds.
-- refactored SAVEDATA parsing to handle Mplus v7 output, which reordered sections in some cases
+- refactored SAVEDATA parsing to handle Mplus v7 output, which reordered sections in some cases.
 - to enhance formatting, createModels no longer strips blank lines from the template file. Thanks to Ronkko Mikko for the suggestion.
 - bugfix: createModels value lookup during init processing was broken. Thanks to Ronkko Mikko for the bugfix.
 - bugfix: finding the end of the input was failing when an error was encountered in Mplus parsing the input.

@@ -181,8 +181,10 @@ getSection_Blanklines <- function(sectionHeader, outfiletext) {
 #LOGISTIC REGRESSION ODDS RATIO RESULTS
 #ALTERNATIVE PARAMETERIZATIONS FOR THE CATEGORICAL LATENT VARIABLE REGRESSION
 
-getSection <- function(sectionHeader, outfiletext, headers="standard") {
+getSection <- function(sectionHeader, outfiletext, headers="standard", omit=NULL) {
   #encode the top-level major headers here, but allow for custom headers to be passed in
+  #omit allows for one or more strings from headers not to be considered
+  #just used for factor score statistics at the moment (these include a SAMPLE STATISTICS section)
   if (headers[1L] == "standard") headers <- c("INPUT INSTRUCTIONS", "SUMMARY OF ANALYSIS",
         "SUMMARY OF DATA FOR THE FIRST DATA SET", "SUMMARY OF DATA FOR THE FIRST REPLICATION",
         "SUMMARY OF MISSING DATA PATTERNS FOR THE FIRST REPLICATION",
@@ -218,6 +220,8 @@ getSection <- function(sectionHeader, outfiletext, headers="standard") {
         "SAMPLE STATISTICS FOR ESTIMATED FACTOR SCORES", "DIAGRAM INFORMATION",
         "Beginning Time:\\s*\\d+:\\d+:\\d+", "MUTHEN & MUTHEN"
     )
+
+  if (!is.null(omit)) headers <- headers[which(!headers %in% omit)] #drop omit
 
   beginSection <- grep(sectionHeader, outfiletext, perl=TRUE)[1]
 

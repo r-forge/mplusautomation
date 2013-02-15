@@ -73,7 +73,6 @@ extractAuxE_1file <- function(outfiletext, filename) {
       }
     }
 
-    allM <- c() # this does not seem to do anything---remove?
     class.M.SE <- strapply(means, "^\\s*Class\\s+(\\d+)\\s+([\\d\\.-]+)\\s+([\\d\\.-]+)", function(class, m, se) {
           return(c(class=as.integer(class), m=as.numeric(m), se=as.numeric(se)))
         }, simplify=FALSE)

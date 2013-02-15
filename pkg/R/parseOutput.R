@@ -35,8 +35,7 @@ readModels <- function(target=getwd(), recursive=FALSE, filefilter) {
     allFiles[[listID]]$tech3 <- extractTech3(outfiletext, fileInfo, curfile) #covariance/correlation matrix of parameter estimates
     allFiles[[listID]]$tech4 <- extractTech4(outfiletext, curfile) #latent means
     allFiles[[listID]]$tech9 <- extractTech9(outfiletext, curfile) #tech 9 output (errors and warnings for Monte Carlo output)
-    
-    #allFiles[[listID]]$facscores <- extractFacScores(outfiletext, curfile) #factor scores output...
+    allFiles[[listID]]$fac_score_stats <- extractFacScoreStats(outfiletext, curfile) #factor scores mean, cov, corr assoc with PLOT3 
     
     #aux(e) means
     allFiles[[listID]]$lcCondMeans <- extractAuxE_1file(outfiletext, curfile)
@@ -253,7 +252,7 @@ extractSummaries_1section <- function(modelFitSection, arglist, filename) {
 	#function to extract model fit statistics from a section
 	#wrapped to allow for multiple fit sections, as in EFA files.
 	
-    #MI and Montecarlo data types have fundamentally different output (means and sds per fit stat)
+  #MI and Montecarlo data types have fundamentally different output (means and sds per fit stat)
 	if (grepl("imputation", arglist$DataType, ignore.case=TRUE) || grepl("montecarlo", arglist$DataType, ignore.case=TRUE)) {
 		modelFitSectionHeaders <- c(
 				"", #section-inspecific parameters
@@ -482,15 +481,23 @@ divideIntoFields <- function(section.text, required) {
     
     #force text matches at word boundary, or just split on = (\b doesn't work for =)
     cmd.split <- strsplit(cmd[1L], "(\\b(IS|ARE|is|are|Is|Are)\\b|=)", perl=TRUE)[[1]]
-    if (length(cmd.split) < 2L) { stop("First line not dividing into LHS and RHS: ", cmd[1L])
+    if (length(cmd.split) < 2L) { 
+      #anomaly: no is/are/=
+      if (tolower(cmd.spacesplit <- strsplit(trimSpace(cmd[1L]), "\\s+", perl=TRUE)[[1L]])[1L] == "usevariables") {
+        #for now, tolerate syntax usevariables x1-x10;
+        cmd.split[1L] <- cmd.spacesplit[1L]
+        cmd.split[2L] <- paste(cmd.spacesplit[2L:length(cmd.spacesplit)], collapse=" ") #rejoin rhs with spaces
+      } else {
+        stop("First line not dividing into LHS and RHS: ", cmd[1L])        
+      }
     } else if (length(cmd.split) > 2L) {
       #probably more than one equals sign, such as knownclass: KNOWNCLASS = g (grp = 1 grp = 2 grp = 3)
-      cmd.split[2L] <- paste(cmd.split[-1L], collapse="=")
-      cmd.split <- cmd.split[1L:2L]
+      cmd.split[2L] <- paste(cmd.split[-1L], collapse="=") #pull out lhs [-1] and join other strings with =
+      cmd.split <- cmd.split[1L:2L] #just retain the lhs and (joined) rhs elements
     }
         
-    cmdName <- trimSpace(cmd.split[1L])
-    cmdArgs <- trimSpace(cmd.split[2L])
+    cmdName <- trimSpace(cmd.split[1L]) #lhs
+    cmdArgs <- trimSpace(cmd.split[2L]) #rhs
     
     section.divide[[make.names(tolower(cmdName))]] <- cmdArgs
     
@@ -653,7 +660,7 @@ extractSummaries_1file <- function(outfiletext, filename, input, extract=c("Titl
 
 	#extract the data type (important for detecting imputation datasets)
   if (!is.null(input$data$type)) {
-    arglist$DataType <- input$analysis$type
+    arglist$DataType <- input$data$type
   } else {
     arglist$DataType <- "INDIVIDUAL" #Data type not specified, default to individual
   }
@@ -875,7 +882,8 @@ extractModelSummaries <- function(target=getwd(), recursive=FALSE, filefilter) {
     #append params for this file to the details array
     #note that this is a memory-inefficient solution because of repeated copying. Better to pre-allocate.
 		
-    details[[i]] <- extractSummaries_1file(readfile, outfiles[i])        
+    inp <- extractInput_1file(readfile, outfiles[i])
+    details[[i]] <- extractSummaries_1file(readfile, outfiles[i], inp)        
   }
   
   #if there are several output files, then use rbind.fill to align fields
@@ -1390,13 +1398,22 @@ extractTech10 <- function(outfiletext, filename) {
   
 }
 
-extractFacScoresStats <- function(outfiletext, filename) {
-  fssSection <- getSection("^SAMPLE STATISTICS FOR ESTIMATED FACTOR SCORES$", outfiletext)
-  if (is.null(fssSection)) return(list()) #no factor scores output
+extractFacScoreStats <- function(outfiletext, filename) {
+  #for now, skip getSection call and use nested header to getMultilineSection to avoid issue of SAMPLE STATISTICS appearing both
+  #as top-level header and sub-header within factor scores
   
+  fssSection <- getMultilineSection("SAMPLE STATISTICS FOR ESTIMATED FACTOR SCORES::SAMPLE STATISTICS",
+      outfiletext, filename, allowMultiple=FALSE)
   fssList <- list()
+  class(fssList) <- c("list", "mplus.facscorestats")
   
+  if (is.na(fssSection[1L])) return(fssList) #no factor scores output
   
+  fssList[["Means"]] <- matrixExtract(fssSection, "Means", filename)
+  fssList[["Covariances"]] <- matrixExtract(fssSection, "Covariances", filename)
+  fssList[["Correlations"]] <- matrixExtract(fssSection, "Correlations", filename)
+  
+  return(fssList)
   
 }
 
