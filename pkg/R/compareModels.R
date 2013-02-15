@@ -291,22 +291,22 @@ compareModels <- function(m1, m2, show="all", equalityMargin=c(param=0.0001, pva
   matchDF <- merge(m1Params[m1Params$paramCombined %in% matchCols, ],
                    m2Params[m2Params$paramCombined %in% matchCols, ],
                    by=uniqueParamCols, all.x=TRUE, all.y=TRUE)
-  matchDF <- subset(matchDF, select=c(-paramCombined.x, -paramCombined.y)) #don't retain the matching column
+  matchDF <- matchDF[, !(names(matchDF) %in% c("paramCombined.x", "paramCombined.y"))] #don't retain the matching column
 
   #remove fixed parameters (only if fixed in both models)
   if (!showFixed) {
-    matchDF <- subset(matchDF, !(m1_est_se == 999.000 & m2_est_se == 999.000))
+    matchDF <- with(matchDF, matchDF[!(m1_est_se == 999.000 & m2_est_se == 999.000),])
     #N.B. I'm dubious about removing fixed from m1/m2 params because then the "unique" output omits these
-    m1Params <- subset(m1Params, !m1_est_se == 999.000)
-    m2Params <- subset(m2Params, !m2_est_se == 999.000)
+    m1Params <- with(m1Params, m1Params[which(m1_est_se != 999.000),])
+    m2Params <- with(m2Params, m2Params[which(m2_est_se != 999.000),])
   }
 
   #remove non-significant effects, if requested
   if (is.logical(showNS) && showNS==FALSE) showNS <- .05 #default alpha for filtering N.S. results
   if (!showNS==TRUE) {
-    matchDF <- subset(matchDF, !(m1_pval > showNS & m2_pval > showNS))
-    m1Params <- subset(m1Params, !(m1_pval > showNS))
-    m2Params <- subset(m2Params, !(m2_pval > showNS))
+    matchDF <- with(matchDF, matchDF[!(m1_pval > showNS & m2_pval > showNS),])
+    m1Params <- with(m1Params, m1Params[!(m1_pval > showNS),])
+    m2Params <- with(m2Params, m2Params[!(m2_pval > showNS),])
   }
 
   if (sort=="type") {

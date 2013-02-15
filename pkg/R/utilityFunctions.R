@@ -68,9 +68,7 @@ testBParamCompoundConstraint <- function(bparams, test) {
   bparams <- as.data.frame(do.call(rbind, bparams))
   
   cat("Number of iterations: ", nrow(bparams), "\n")
-  attach(bparams)
-  testResult <- eval(parse(text=test))
-  detach(bparams)
+  testResult <- with(bparams, eval(parse(text=test)))
   
   counts <- table(testResult)
   names(counts) <- c("Constraint not met", "Constraint met")
@@ -82,7 +80,7 @@ testBParamCompoundConstraint <- function(bparams, test) {
 }
 
 friendlyGregexpr <- function(pattern, charvector, perl=TRUE) {
-  require(plyr)
+  #require(plyr)
   #now create data frame documenting the start and end of all tags
   #rather than ldply, need a usual loop to track element number (in cases where charvector is a vector)
   regexpMatches <- gregexpr(pattern, charvector, perl=perl)

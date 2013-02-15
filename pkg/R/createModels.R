@@ -581,7 +581,7 @@ replaceBodyTags <- function(bodySection, bodyTags, initCollection) {
   #if so, replace at the last minute (check this in Init)
 
   #set a "deferred" status in currentValue if replacement contains tags
-  targetTags <- subset(bodyTags, tagType %in% c("simple", "iterator", "array"))
+  targetTags <- with(bodyTags, bodyTags[, tagType %in% c("simple", "iterator", "array")])
   targetTags$rownumber <- 1:nrow(targetTags)
 
   #print(targetTags)
@@ -697,7 +697,7 @@ finalizeInitCollection <- function(initCollection) {
     if (nrow(initTags) == 0) break #if no tags found, then substitution complete
 
     #update: iterator tags can be nested within other tag types and not updated until here.
-    initTags <- subset(initTags, tagType %in% c("simple", "iterator", "array"))
+    initTags <- with(initTags, initTags[tagType %in% c("simple", "iterator", "array"),])
     if (nrow(initTags) == 0) break #some tags, but none of the simple or array variety, which we want to replace
 
     #use plyr's splitter_a function to divide dataset by row (builds a big list)
@@ -806,7 +806,7 @@ clipString <- function(string, start, end) {
 #' @return Processed templateTags
 #' @keywords internal
 processConditionalTags <- function(templateTags, initCollection) {
-  require(gsubfn)
+  #require(gsubfn) #moving to import strategy
   #find all conditional tags in the body section and remove them from the templateTags and bodyText pieces...
 
   conditionalTagIndices <- which(templateTags$bodyTags$tagType=="conditional")

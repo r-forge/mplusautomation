@@ -13,7 +13,7 @@ readModels <- function(target=getwd(), recursive=FALSE, filefilter) {
 		outfiletext <- scan(curfile, what="character", sep="\n", strip.white=FALSE, blank.lines.skip=FALSE)
 
     allFiles[[listID]]$input <- inp <- extractInput_1file(outfiletext, curfile)
-    warn_err <- extractWarningsErrors_1file(outfiletext, filename, input=inp)
+    warn_err <- extractWarningsErrors_1file(outfiletext, curfile, input=inp)
     allFiles[[listID]]$warnings <- warn_err$warnings
     allFiles[[listID]]$errors <- warn_err$errors
     allFiles[[listID]]$summaries <- extractSummaries_1file(outfiletext, curfile, input=inp)
@@ -857,7 +857,7 @@ extractModelSummaries <- function(target=getwd(), recursive=FALSE, filefilter) {
 #
 #   Example: myModels <- extractModelSummaries("C:/Documents and Settings/Michael/My Documents/Mplus Stuff/", recursive=TRUE)
   
-	require(plyr)
+#	require(plyr)
 	
 	#retain working directory and reset at end of run
   curdir <- getwd()
@@ -909,7 +909,7 @@ addHeaderToSavedata <- function(outfile, directory=getwd()) {
 
 #a helper function to be used by wrappers that generate HTML, LaTex, and on-screen displays of summary statistics
 subsetModelList <- function(modelList, keepCols, dropCols, sortBy) {
-  require(plyr)
+#  require(plyr)
   
   #if passed an mplus.model.list from readModels, then just extract summaries for disply
   if (inherits(modelList, "mplus.model.list")) {
@@ -969,7 +969,7 @@ subsetModelList <- function(modelList, keepCols, dropCols, sortBy) {
 
 #display summary table in a separate window
 showSummaryTable <- function(modelList, keepCols, dropCols, sortBy, font="Courier 9") {
-  require(relimp)
+#  require(relimp)
 
   MplusData <- subsetModelList(modelList, keepCols, dropCols, sortBy)
   showData(MplusData, font=font, placement="+30+30", maxwidth=150, maxheight=50, rownumbers=FALSE, title="Mplus Summary Table")
@@ -977,7 +977,7 @@ showSummaryTable <- function(modelList, keepCols, dropCols, sortBy, font="Courie
 
 #create HTML table
 HTMLSummaryTable <- function(modelList, filename=file.path(getwd(), "Model Comparison.html"), keepCols, dropCols, sortBy, display=FALSE) {
-  require(xtable)
+#  require(xtable)
   #create HTML table and write to file.
   
   #ensure that the filename has a .html or .htm at the end
@@ -1008,7 +1008,7 @@ HTMLSummaryTable <- function(modelList, filename=file.path(getwd(), "Model Compa
 
 LatexSummaryTable <- function(modelList, keepCols, dropCols, sortBy, label=NULL, caption=NULL) {
   #return latex table to caller
-  require(xtable)
+  #require(xtable)
   
   MplusData <- subsetModelList(modelList, keepCols, dropCols, sortBy)
 
@@ -1036,7 +1036,7 @@ createTable <- function(modelList, filename=file.path(getwd(), "Model Comparison
   #curdir <- getwd()
   #setwd(basedir)
   
-  require(xtable)
+  #require(xtable)
   
   #convert modelList (which defaults to array of lists) to data frame
   dframe <- as.data.frame(modelList)

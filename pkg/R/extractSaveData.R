@@ -77,8 +77,8 @@ getSavedata_Fileinfo <- function(outfile) {
 #' @keywords internal
 l_getSavedata_Fileinfo <- function(outfile, outfiletext) {
 
-#  require(gsubfn)
-#  require(plyr)
+  #require(gsubfn)
+  #require(plyr)
 
   sectionStarts <- c("Estimates", #estimates
       "Estimated Covariance Matrix for the Parameter Estimates", #tech3
@@ -249,7 +249,7 @@ l_getSavedata_Fileinfo <- function(outfile, outfiletext) {
 #  savefile.recordlength <- getSection("^\\s*Save file record length\\s+\\d+\\s*$", savedataSection, sectionStarts)
 #  #Skip for now
 
-  orderFormat.text <- getMultilineSection("Order and format of variables", savedataSection, filename, allowMultiple=FALSE)
+  orderFormat.text <- getMultilineSection("Order and format of variables", savedataSection, outfile, allowMultiple=FALSE)
 
   #getSection("^\\s*Order and format of variables\\s*$", savedataSection, sectionStarts)
 
@@ -263,7 +263,7 @@ l_getSavedata_Fileinfo <- function(outfile, outfiletext) {
   }
 
   #Monte carlo and multiple imputation output: contains only order of variables, not their format
-  order.text <- getMultilineSection("Order of variables", savedataSection, filename, allowMultiple=FALSE)
+  order.text <- getMultilineSection("Order of variables", savedataSection, outfile, allowMultiple=FALSE)
 
   if (!is.na(order.text[1L])) {
 	  #dump any blank fields because they will cause nulls in the names, formats, widths.
